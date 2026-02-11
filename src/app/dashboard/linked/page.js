@@ -1,6 +1,6 @@
-export const dynamic = "force-dynamic";
-
 "use client";
+
+export const dynamic = "force-dynamic";
 
 import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
@@ -18,6 +18,7 @@ function LinkedContent() {
       ) : (
         <p>❌ Falhou: {error || "erro desconhecido"}</p>
       )}
+
       <p style={{ marginTop: 12 }}>
         <Link href="/dashboard">Voltar ao dashboard</Link>
       </p>
