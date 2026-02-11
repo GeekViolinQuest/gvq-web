@@ -1,9 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 
 export default function LoginPage() {
+  const router = useRouter();
+
   const [email, setEmail] = useState("");
   const [msg, setMsg] = useState("");
   const [loading, setLoading] = useState(false);
@@ -21,12 +24,15 @@ export default function LoginPage() {
     setLoading(false);
 
     if (!r.ok) return setMsg(r.data?.error || "Erro ao pedir OTP");
-    setMsg("Código enviado. Vá para /otp");
+
+    // ✅ Redireciona automaticamente para /otp, passando o email
+    router.push(`/otp?email=${encodeURIComponent(email)}`);
   }
 
   return (
     <main style={{ padding: 24, maxWidth: 480 }}>
       <h1>GVQ — Login</h1>
+
       <form onSubmit={requestOtp}>
         <input
           value={email}
@@ -34,14 +40,13 @@ export default function LoginPage() {
           placeholder="seu@email.com"
           style={{ width: "100%", padding: 12, marginTop: 12 }}
         />
+
         <button disabled={loading} style={{ marginTop: 12, padding: 12 }}>
           {loading ? "Enviando..." : "Enviar código"}
         </button>
       </form>
+
       {msg && <p style={{ marginTop: 12 }}>{msg}</p>}
-      <p style={{ marginTop: 12 }}>
-        Depois: vá em <code>/otp</code>
-      </p>
     </main>
   );
 }

@@ -2,14 +2,16 @@
 
 import { useState } from "react";
 import { apiFetch, setToken } from "@/lib/api";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 export default function OtpPage() {
-  const [email, setEmail] = useState("");
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const [email, setEmail] = useState(() => searchParams.get("email") || "");
   const [code, setCode] = useState("");
   const [msg, setMsg] = useState("");
   const [loading, setLoading] = useState(false);
-  const router = useRouter();
 
   async function verifyOtp(e) {
     e.preventDefault();
@@ -32,6 +34,7 @@ export default function OtpPage() {
   return (
     <main style={{ padding: 24, maxWidth: 480 }}>
       <h1>GVQ — Verificar código</h1>
+
       <form onSubmit={verifyOtp}>
         <input
           value={email}
@@ -49,6 +52,7 @@ export default function OtpPage() {
           {loading ? "Validando..." : "Entrar"}
         </button>
       </form>
+
       {msg && <p style={{ marginTop: 12 }}>{msg}</p>}
     </main>
   );
