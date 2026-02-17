@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { setToken } from "@/lib/api";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -71,7 +72,7 @@ export default function LoginPage() {
       const data = await res.json().catch(() => ({}));
 
       if (res.ok && data?.ok && data?.token) {
-        localStorage.setItem("gvq_token", data.token);
+        setToken(data.token);
         setMessage("✅ Login confirmado! Token salvo.");
         // window.location.href = "/dashboard";
       } else {
@@ -147,7 +148,11 @@ export default function LoginPage() {
               Reenviar código
             </button>
 
-            <button onClick={reset} disabled={loading} style={{ marginLeft: 10 }}>
+            <button
+              onClick={reset}
+              disabled={loading}
+              style={{ marginLeft: 10 }}
+            >
               Trocar e-mail
             </button>
           </>
