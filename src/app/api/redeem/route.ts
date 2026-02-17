@@ -4,17 +4,18 @@ export const dynamic = "force-dynamic";
 export async function POST(req: Request) {
   const API_URL = process.env.API_URL;
   if (!API_URL) {
-    return NextResponse.json(
-      { ok: false, error: "API_URL não definida no servidor (Zeabur)" },
-      { status: 500 }
-    );
+    return NextResponse.json({ ok: false, error: "API_URL não definida" }, { status: 500 });
   }
 
+  const auth = req.headers.get("authorization") || "";
   const body = await req.json().catch(() => ({}));
 
-  const r = await fetch(`${API_URL}/api/auth/verify-otp`, {
+  const r = await fetch(`${API_URL}/api/redeem`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: auth,
+    },
     cache: "no-store",
     body: JSON.stringify(body),
   });

@@ -1,3 +1,5 @@
+// src/lib/api.js (Padrão A: sempre chama o proxy do Next em /api/*)
+
 export function getToken() {
   if (typeof window === "undefined") return null;
   return localStorage.getItem("gvq_token");
@@ -13,13 +15,13 @@ export function clearToken() {
   localStorage.removeItem("gvq_token");
 }
 
-// Para chamadas internas (Next proxy) -> /api/...
 export async function apiFetch(path, { method = "GET", body, auth = false } = {}) {
-  const headers = { "Content-Type": "application/json" };
+  const headers = new Headers();
+  headers.set("Content-Type", "application/json");
 
   if (auth) {
     const token = getToken();
-    if (token) headers.Authorization = `Bearer ${token}`;
+    if (token) headers.set("Authorization", `Bearer ${token}`);
   }
 
   const res = await fetch(path, {
@@ -30,6 +32,11 @@ export async function apiFetch(path, { method = "GET", body, auth = false } = {}
   });
 
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data?.error || `Erro HTTP ${res.status}`);
+
+  if (!res.ok) {
+    const msg = data?.error || `Erro HTTP ${res.status}`;
+    throw new Error(msg);
+  }
+
   return data;
 }

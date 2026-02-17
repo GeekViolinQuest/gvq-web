@@ -1,18 +1,21 @@
 "use client";
 
 import { useState } from "react";
-import { setToken } from "@/lib/api";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
+
   const [step, setStep] = useState("email"); // "email" | "code"
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
   const requestOtp = async () => {
     const cleanEmail = email.trim().toLowerCase();
-    if (!cleanEmail) return setMessage("Digite seu e-mail.");
+    if (!cleanEmail) {
+      setMessage("Digite seu e-mail.");
+      return;
+    }
 
     setLoading(true);
     setMessage("");
@@ -34,7 +37,7 @@ export default function LoginPage() {
         setMessage(data?.error || "Erro ao enviar código.");
       }
     } catch {
-      setMessage("Erro de conexão.");
+      setMessage("Erro de conexão com o servidor.");
     } finally {
       setLoading(false);
     }
@@ -49,7 +52,10 @@ export default function LoginPage() {
       setStep("email");
       return;
     }
-    if (cleanCode.length !== 6) return setMessage("Digite o código de 6 dígitos.");
+    if (cleanCode.length !== 6) {
+      setMessage("Digite o código de 6 dígitos.");
+      return;
+    }
 
     setLoading(true);
     setMessage("");
@@ -65,13 +71,14 @@ export default function LoginPage() {
       const data = await res.json().catch(() => ({}));
 
       if (res.ok && data?.ok && data?.token) {
-        setToken(data.token);
+        localStorage.setItem("gvq_token", data.token);
         setMessage("✅ Login confirmado! Token salvo.");
+        // window.location.href = "/dashboard";
       } else {
         setMessage(data?.error || "Código inválido.");
       }
     } catch {
-      setMessage("Erro de conexão.");
+      setMessage("Erro de conexão com o servidor.");
     } finally {
       setLoading(false);
     }
@@ -101,12 +108,16 @@ export default function LoginPage() {
 
       {step === "code" && (
         <div style={{ marginTop: 16 }}>
-          <label style={{ display: "block", marginBottom: 6 }}>Código (6 dígitos)</label>
+          <label style={{ display: "block", marginBottom: 6 }}>
+            Código (6 dígitos)
+          </label>
           <input
             inputMode="numeric"
             placeholder="000000"
             value={code}
-            onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+            onChange={(e) =>
+              setCode(e.target.value.replace(/\D/g, "").slice(0, 6))
+            }
             style={{ padding: 10, width: 140, letterSpacing: 4 }}
             disabled={loading}
           />
@@ -120,11 +131,19 @@ export default function LoginPage() {
           </button>
         ) : (
           <>
-            <button onClick={verifyOtp} disabled={loading || code.trim().length !== 6}>
+            <button
+              onClick={verifyOtp}
+              disabled={loading || code.trim().length !== 6}
+            >
               {loading ? "Confirmando..." : "Confirmar código"}
             </button>
 
-            <button onClick={requestOtp} disabled={loading} style={{ marginLeft: 10 }}>
+            <button
+              onClick={requestOtp}
+              disabled={loading}
+              style={{ marginLeft: 10 }}
+              title="Reenviar (respeita o cooldown do backend)"
+            >
               Reenviar código
             </button>
 
