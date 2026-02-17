@@ -6,18 +6,21 @@ import { getToken, clearToken } from "@/lib/api";
 
 export default function AuthGate({ children }) {
   const router = useRouter();
-  const [ok, setOk] = useState(false);
+  const [ready, setReady] = useState(false);
 
   useEffect(() => {
     const token = getToken();
+
     if (!token) {
       clearToken();
       router.replace("/login");
       return;
     }
-    setOk(true);
+
+    setReady(true);
   }, [router]);
 
-  if (!ok) return null;
+  if (!ready) return null;
+
   return children;
 }
