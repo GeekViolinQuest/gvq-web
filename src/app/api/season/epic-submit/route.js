@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 
-export async function POST(req: Request) {
+export async function POST(req) {
   const API_URL = process.env.API_URL;
   if (!API_URL) {
     return NextResponse.json({ ok: false, error: "API_URL não definida" }, { status: 500 });
@@ -10,7 +10,7 @@ export async function POST(req: Request) {
   const auth = req.headers.get("authorization") || "";
   const body = await req.json().catch(() => ({}));
 
-  const r = await fetch(`${API_URL}/api/season/submit`, {
+  const r = await fetch(`${API_URL}/api/season/epic-submit`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: auth },
     cache: "no-store",
