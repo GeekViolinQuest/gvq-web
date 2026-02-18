@@ -17,22 +17,27 @@ function ItemCard({ title, subtitle, img, locked, tag }) {
         opacity: locked ? 0.35 : 1,
       }}
     >
-      <div
-        style={{
-          width: 64,
-          height: 64,
-          borderRadius: 10,
-          overflow: "hidden",
-          border: "1px solid rgba(255,255,255,0.12)",
-          background: "rgba(255,255,255,0.04)",
-          flex: "0 0 auto",
-        }}
-      >
-        {img ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={img} alt={title} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-        ) : null}
-      </div>
+      {/* ✅ opcional: só mostra o bloco de imagem se existir img */}
+      {img ? (
+        <div
+          style={{
+            width: 64,
+            height: 64,
+            borderRadius: 10,
+            overflow: "hidden",
+            border: "1px solid rgba(255,255,255,0.12)",
+            background: "rgba(255,255,255,0.04)",
+            flex: "0 0 auto",
+          }}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={img}
+            alt={title}
+            style={{ width: "100%", height: "100%", objectFit: "cover" }}
+          />
+        </div>
+      ) : null}
 
       <div style={{ flex: 1 }}>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -51,8 +56,18 @@ function ItemCard({ title, subtitle, img, locked, tag }) {
             </span>
           ) : null}
         </div>
-        {subtitle ? <div style={{ opacity: 0.8, marginTop: 4, fontSize: 13 }}>{subtitle}</div> : null}
-        {locked ? <div style={{ marginTop: 6, fontSize: 12, opacity: 0.85 }}>🔒 Ainda não conquistada</div> : null}
+
+        {subtitle ? (
+          <div style={{ opacity: 0.8, marginTop: 4, fontSize: 13 }}>
+            {subtitle}
+          </div>
+        ) : null}
+
+        {locked ? (
+          <div style={{ marginTop: 6, fontSize: 12, opacity: 0.85 }}>
+            🔒 Ainda não conquistada
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -134,7 +149,14 @@ export default function PerfilPage() {
 
   return (
     <AuthGate>
-      <div style={{ maxWidth: 980, margin: "0 auto", padding: "32px 18px", color: "white" }}>
+      <div
+        style={{
+          maxWidth: 980,
+          margin: "0 auto",
+          padding: "32px 18px",
+          color: "white",
+        }}
+      >
         <h1 style={{ fontSize: 34, marginBottom: 6 }}>Perfil</h1>
         <div style={{ opacity: 0.8, marginBottom: 22 }}>
           {user.displayName ? user.displayName : "Guardião"} · {user.email || ""}
@@ -142,7 +164,13 @@ export default function PerfilPage() {
 
         {loading ? <div style={{ opacity: 0.8 }}>Carregando...</div> : null}
         {err ? (
-          <div style={{ border: "1px solid rgba(255,80,80,0.35)", padding: 12, borderRadius: 12 }}>
+          <div
+            style={{
+              border: "1px solid rgba(255,80,80,0.35)",
+              padding: 12,
+              borderRadius: 12,
+            }}
+          >
             ❌ {err}
           </div>
         ) : null}
@@ -157,24 +185,54 @@ export default function PerfilPage() {
                 marginBottom: 22,
               }}
             >
-              <div style={{ border: "1px solid rgba(255,255,255,0.12)", borderRadius: 12, padding: 14 }}>
+              <div
+                style={{
+                  border: "1px solid rgba(255,255,255,0.12)",
+                  borderRadius: 12,
+                  padding: 14,
+                }}
+              >
                 <div style={{ opacity: 0.75, fontSize: 13 }}>Nível</div>
-                <div style={{ fontSize: 26, fontWeight: 800 }}>{progress.level ?? 0}</div>
+                <div style={{ fontSize: 26, fontWeight: 800 }}>
+                  {progress.level ?? 0}
+                </div>
               </div>
 
-              <div style={{ border: "1px solid rgba(255,255,255,0.12)", borderRadius: 12, padding: 14 }}>
-                <div style={{ opacity: 0.75, fontSize: 13 }}>Cristais Sonoros</div>
-                <div style={{ fontSize: 26, fontWeight: 800 }}>{progress.cristais ?? 0}</div>
+              <div
+                style={{
+                  border: "1px solid rgba(255,255,255,0.12)",
+                  borderRadius: 12,
+                  padding: 14,
+                }}
+              >
+                <div style={{ opacity: 0.75, fontSize: 13 }}>
+                  Cristais Sonoros
+                </div>
+                <div style={{ fontSize: 26, fontWeight: 800 }}>
+                  {progress.cristais ?? 0}
+                </div>
               </div>
 
-              <div style={{ border: "1px solid rgba(255,255,255,0.12)", borderRadius: 12, padding: 14 }}>
+              <div
+                style={{
+                  border: "1px solid rgba(255,255,255,0.12)",
+                  borderRadius: 12,
+                  padding: 14,
+                }}
+              >
                 <div style={{ opacity: 0.75, fontSize: 13 }}>Runas</div>
                 <div style={{ fontSize: 18, fontWeight: 800 }}>
                   {gotRunas}/{totalRunas}
                 </div>
               </div>
 
-              <div style={{ border: "1px solid rgba(255,255,255,0.12)", borderRadius: 12, padding: 14 }}>
+              <div
+                style={{
+                  border: "1px solid rgba(255,255,255,0.12)",
+                  borderRadius: 12,
+                  padding: 14,
+                }}
+              >
                 <div style={{ opacity: 0.75, fontSize: 13 }}>Relíquias</div>
                 <div style={{ fontSize: 18, fontWeight: 800 }}>
                   {gotReliquias}/{totalReliquias}
@@ -183,27 +241,41 @@ export default function PerfilPage() {
             </div>
 
             <h2 style={{ fontSize: 20, margin: "22px 0 10px" }}>Runas</h2>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 12 }}>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
+                gap: 12,
+              }}
+            >
+              {/* ✅ comportamento das runas tb: locked -> nome/código/imagen travados */}
               {runasList.map((r) => (
                 <ItemCard
                   key={`runa-${r.code}`}
-                  title={r.nome}
-                  subtitle={`Código: ${r.code}`}
-                  img={r.imagem}
+                  title={r.locked ? "Runa desconhecida" : r.nome}
+                  subtitle={r.locked ? "" : `Código: ${r.code}`}
+                  img={r.locked ? "/locked.png" : r.imagem}
                   locked={r.locked}
-                  tag={r.tipo ? `Runa ${r.tipo}` : ""}
+                  tag={r.locked ? "" : r.tipo ? `Runa ${r.tipo}` : ""}
                 />
               ))}
             </div>
 
             <h2 style={{ fontSize: 20, margin: "28px 0 10px" }}>Relíquias</h2>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 12 }}>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))",
+                gap: 12,
+              }}
+            >
+              {/* ✅ teu comportamento desejado: locked -> imagem/nome/código travados */}
               {reliquiasList.map((r) => (
                 <ItemCard
                   key={`rel-${r.code}`}
-                  title={r.nome}
-                  subtitle={`Código: ${r.code}`}
-                  img={r.imagem}
+                  title={r.locked ? "Relíquia desconhecida" : r.nome}
+                  subtitle={r.locked ? "" : `Código: ${r.code}`}
+                  img={r.locked ? "/locked.png" : r.imagem}
                   locked={r.locked}
                 />
               ))}
