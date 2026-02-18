@@ -24,7 +24,10 @@ export async function apiFetch(path, { method = "GET", body, auth = false } = {}
     if (token) headers.set("Authorization", `Bearer ${token}`);
   }
 
-  const res = await fetch(path, {
+  const base = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
+  const url = path.startsWith("http") ? path : `${base}${path}`;
+
+  const res = await fetch(url, {
     method,
     headers,
     cache: "no-store",
@@ -42,7 +45,7 @@ export async function apiFetch(path, { method = "GET", body, auth = false } = {}
 }
 
 export async function apiGet(path) {
-  const base = process.env.NEXT_PUBLIC_API_BASE || "";
+  const base = process.env.NEXT_PUBLIC_API_URL || "";
   const url = `${base}${path}`;
 
   const token = getToken?.() || null;
