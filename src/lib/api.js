@@ -40,3 +40,19 @@ export async function apiFetch(path, { method = "GET", body, auth = false } = {}
 
   return data;
 }
+
+export async function apiGet(path) {
+  const base = process.env.NEXT_PUBLIC_API_BASE || "";
+  const url = `${base}${path}`;
+
+  const token = getToken?.() || null;
+
+  const res = await fetch(url, {
+    method: "GET",
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+
+  return res.json();
+}
