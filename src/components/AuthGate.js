@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getToken, clearToken } from "@/lib/api";
 
+
 export default function AuthGate({ children }) {
   const router = useRouter();
   const [ready, setReady] = useState(false);
