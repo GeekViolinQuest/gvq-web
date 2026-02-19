@@ -1,8 +1,13 @@
 import { NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 
-export async function GET(req: Request) {
-  const API_URL = process.env.API_URL;
+function getApiUrl() {
+  const raw = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || "";
+  return raw.replace(/\/$/, "");
+}
+
+export async function GET(req) {
+  const API_URL = getApiUrl();
   if (!API_URL) {
     return NextResponse.json({ ok: false, error: "API_URL não definida" }, { status: 500 });
   }

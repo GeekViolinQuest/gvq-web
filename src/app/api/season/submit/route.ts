@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 
+function getApiUrl() {
+  const raw = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || "";
+  return raw.replace(/\/$/, "");
+}
+
+
 export async function POST(req: Request) {
   const API_URL = process.env.API_URL;
   if (!API_URL) {
