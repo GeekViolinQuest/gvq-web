@@ -1,140 +1,152 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import AuthGate from "@/components/AuthGate";
 import { apiFetch, apiGet } from "@/lib/api";
+import { useEffect, useState } from "react";
 
 export default function SeasonPage() {
-  const [type, setType] = useState("season"); // season | epic
-  const [url, setUrl] = useState("");
-  const [event, setEvent] = useState(null);
-  const [eventSlug, setEventSlug] = useState("");
-  const [msg, setMsg] = useState("");
-  const [err, setErr] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [linkSeason, setLinkSeason] = useState("");
+  const [seasonMsg, setSeasonMsg] = useState(null);
+  const [seasonErr, setSeasonErr] = useState(null);
+  const [loadingSeason, setLoadingSeason] = useState(false);
+
+  const [epic, setEpic] = useState(null);
+  const [linkEpic, setLinkEpic] = useState("");
+  const [epicMsg, setEpicMsg] = useState(null);
+  const [epicErr, setEpicErr] = useState(null);
+  const [loadingEpic, setLoadingEpic] = useState(false);
+
+  async function loadEpic() {
+    const r = await apiGet("/api/season/epic-active");
+    if (r?.ok) setEpic(r);
+    else setEpic({ ok: false, error: r?.error || "Falha ao carregar épica" });
+  }
 
   useEffect(() => {
-    async function load() {
-      const r = await apiGet("/api/season/epic-active").catch(() => null);
-      if (r?.ok) {
-        setEvent(r.event || null);
-        setEventSlug(r?.event?.slug || "");
-      }
-    }
-    load();
+    loadEpic();
   }, []);
 
-  async function submit(e) {
+  async function submitSeason(e) {
     e.preventDefault();
-    setMsg("");
-    setErr("");
-    setLoading(true);
+    setLoadingSeason(true);
+    setSeasonMsg(null);
+    setSeasonErr(null);
 
     try {
-      const body = { type, url: url.trim() };
-      if (type === "epic") body.eventSlug = eventSlug;
-
-      const r = await apiFetch("/api/season/submit", {
+      const res = await apiFetch("/api/season/submit", {
         method: "POST",
         auth: true,
-        body,
+        body: { link: linkSeason.trim() },
       });
 
-      setMsg(type === "season"
-        ? "✅ Quest da semana enviada! (1 por semana)"
-        : "✅ Quest Épica enviada! (1 por evento)"
-      );
-      setUrl("");
-    } catch (e) {
-      setErr(e?.message || "Erro ao enviar");
+      setSeasonMsg(`✅ Season enviada! Semana: ${res.weekKey}`);
+      setLinkSeason("");
+    } catch (err) {
+      setSeasonErr(err?.message || "Erro ao enviar");
     } finally {
-      setLoading(false);
+      setLoadingSeason(false);
     }
   }
 
+  async function submitEpic(e) {
+    e.preventDefault();
+    setLoadingEpic(true);
+    setEpicMsg(null);
+    setEpicErr(null);
+
+    try {
+      const res = await apiFetch("/api/season/epic-submit", {
+        method: "POST",
+        auth: true,
+        body: { link: linkEpic.trim() },
+      });
+
+      setEpicMsg(`🏆 Quest Épica enviada: ${res?.event?.title || "OK"}`);
+      setLinkEpic("");
+      await loadEpic();
+    } catch (err) {
+      setEpicErr(err?.message || "Erro ao enviar épica");
+    } finally {
+      setLoadingEpic(false);
+    }
+  }
+
+  const epicEvent = epic?.event || null;
+  const alreadyEpic = !!epic?.alreadySubmitted;
+
   return (
     <AuthGate>
-      <div style={{ maxWidth: 780, margin: "0 auto", padding: 32, color: "white" }}>
-        <h1 style={{ fontSize: 30, marginBottom: 8 }}>Season Quests</h1>
-        <div style={{ opacity: 0.75, marginBottom: 18 }}>
-          Envie o link do seu vídeo (YouTube / Shorts / etc).
+      <div style={{ maxWidth: 820, margin: "0 auto", padding: "32px 18px", color: "white" }}>
+        <h1 style={{ fontSize: 34, marginBottom: 6 }}>Season Quests</h1>
+        <div style={{ opacity: 0.8, marginBottom: 22 }}>
+          Envie sua mídia por link (YouTube/Shorts, etc.). 1 envio por semana.
         </div>
 
-        <form onSubmit={submit} style={{ display: "grid", gap: 12 }}>
-          <div style={{ display: "flex", gap: 10 }}>
-            <button
-              type="button"
-              onClick={() => setType("season")}
-              style={{
-                padding: "10px 12px",
-                borderRadius: 10,
-                border: "1px solid rgba(255,255,255,0.15)",
-                opacity: type === "season" ? 1 : 0.6,
-                cursor: "pointer",
-              }}
-            >
-              📅 Quest Semanal
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setType("epic")}
-              style={{
-                padding: "10px 12px",
-                borderRadius: 10,
-                border: "1px solid rgba(255,255,255,0.15)",
-                opacity: type === "epic" ? 1 : 0.6,
-                cursor: "pointer",
-              }}
-              disabled={!eventSlug}
-              title={!eventSlug ? "Nenhuma Quest Épica ativa agora" : ""}
-            >
-              ⚔️ Quest Épica
-            </button>
+        {/* Season semanal */}
+        <div style={{ border: "1px solid rgba(255,255,255,0.12)", borderRadius: 14, padding: 16 }}>
+          <h2 style={{ fontSize: 18, margin: 0 }}>Quest da Semana</h2>
+          <div style={{ opacity: 0.8, marginTop: 6, fontSize: 13 }}>
+            Regra: 1 envio por semana por Guardião.
           </div>
 
-          {type === "epic" && (
-            <div style={{ opacity: 0.85, fontSize: 14 }}>
-              {eventSlug ? (
-                <>Evento ativo: <b>{event?.title}</b> (slug: {eventSlug})</>
+          <form onSubmit={submitSeason} style={{ marginTop: 14, display: "grid", gap: 10 }}>
+            <input
+              value={linkSeason}
+              onChange={(e) => setLinkSeason(e.target.value)}
+              placeholder="Cole o link do vídeo aqui..."
+              style={{ padding: 12, borderRadius: 10, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(0,0,0,0.25)", color: "white" }}
+            />
+            <button
+              type="submit"
+              disabled={loadingSeason}
+              style={{ padding: 12, borderRadius: 10, cursor: "pointer" }}
+            >
+              {loadingSeason ? "Enviando..." : "Enviar Season"}
+            </button>
+          </form>
+
+          {seasonMsg ? <div style={{ marginTop: 12, color: "lightgreen" }}>{seasonMsg}</div> : null}
+          {seasonErr ? <div style={{ marginTop: 12, color: "salmon" }}>❌ {seasonErr}</div> : null}
+        </div>
+
+        {/* Epic */}
+        <div style={{ marginTop: 18, border: "1px solid rgba(255,255,255,0.12)", borderRadius: 14, padding: 16 }}>
+          <h2 style={{ fontSize: 18, margin: 0 }}>Quest Épica</h2>
+
+          {!epicEvent ? (
+            <div style={{ opacity: 0.8, marginTop: 10 }}>Nenhuma Quest Épica ativa no momento.</div>
+          ) : (
+            <>
+              <div style={{ opacity: 0.9, marginTop: 10, fontWeight: 700 }}>{epicEvent.title}</div>
+              <div style={{ opacity: 0.75, marginTop: 6, fontSize: 13 }}>
+                Ativa até: {new Date(epicEvent.endsAt).toLocaleString()}
+              </div>
+
+              {alreadyEpic ? (
+                <div style={{ marginTop: 10, opacity: 0.85 }}>✅ Você já enviou esta Quest Épica.</div>
               ) : (
-                <>Nenhuma Quest Épica ativa no momento.</>
+                <form onSubmit={submitEpic} style={{ marginTop: 14, display: "grid", gap: 10 }}>
+                  <input
+                    value={linkEpic}
+                    onChange={(e) => setLinkEpic(e.target.value)}
+                    placeholder="Cole o link do vídeo da Quest Épica..."
+                    style={{ padding: 12, borderRadius: 10, border: "1px solid rgba(255,255,255,0.12)", background: "rgba(0,0,0,0.25)", color: "white" }}
+                  />
+                  <button
+                    type="submit"
+                    disabled={loadingEpic}
+                    style={{ padding: 12, borderRadius: 10, cursor: "pointer" }}
+                  >
+                    {loadingEpic ? "Enviando..." : "Enviar Épica"}
+                  </button>
+                </form>
               )}
-            </div>
+
+              {epicMsg ? <div style={{ marginTop: 12, color: "lightgreen" }}>{epicMsg}</div> : null}
+              {epicErr ? <div style={{ marginTop: 12, color: "salmon" }}>❌ {epicErr}</div> : null}
+            </>
           )}
-
-          <input
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            placeholder="Cole aqui o link (YouTube, Shorts, etc)"
-            style={{
-              width: "100%",
-              padding: 12,
-              borderRadius: 10,
-              border: "1px solid rgba(255,255,255,0.15)",
-              background: "rgba(255,255,255,0.04)",
-              color: "white",
-              outline: "none",
-            }}
-          />
-
-          <button
-            type="submit"
-            disabled={loading || !url.trim() || (type === "epic" && !eventSlug)}
-            style={{
-              padding: 12,
-              borderRadius: 10,
-              border: "1px solid rgba(255,255,255,0.15)",
-              cursor: "pointer",
-              opacity: loading ? 0.7 : 1,
-            }}
-          >
-            {loading ? "Enviando..." : "Enviar Quest"}
-          </button>
-
-          {msg ? <div style={{ color: "#8ef0b3" }}>{msg}</div> : null}
-          {err ? <div style={{ color: "#ff8b8b" }}>❌ {err}</div> : null}
-        </form>
+        </div>
       </div>
     </AuthGate>
   );
