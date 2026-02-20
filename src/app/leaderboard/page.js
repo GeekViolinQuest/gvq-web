@@ -1,161 +1,185 @@
 "use client";
 
+import AuthGate from "@/components/AuthGate";
+import { apiGet } from "@/lib/api";
 import { useEffect, useMemo, useState } from "react";
-import { apiFetch } from "@/lib/api";
+
+function TabButton({ active, onClick, children }) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        padding: "10px 12px",
+        borderRadius: 12,
+        border: "1px solid rgba(255,255,255,0.12)",
+        background: active ? "rgba(255,255,255,0.14)" : "rgba(255,255,255,0.06)",
+        color: "white",
+        cursor: "pointer",
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function Table({ rows, mode }) {
+  const colLabel =
+    mode === "level" ? "Nível" : mode === "season" ? "Cristais" : "Relíquias";
+
+  const valueOf = (r) =>
+    mode === "level" ? r.level : mode === "season" ? r.cristais : r.reliquiasCount;
+
+  return (
+    <div
+      style={{
+        border: "1px solid rgba(255,255,255,0.12)",
+        borderRadius: 14,
+        overflow: "hidden",
+      }}
+    >
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "70px 1fr 120px",
+          padding: 12,
+          opacity: 0.85,
+          background: "rgba(255,255,255,0.04)",
+        }}
+      >
+        <div>#</div>
+        <div>Guardião</div>
+        <div style={{ textAlign: "right" }}>{colLabel}</div>
+      </div>
+
+      {rows?.length ? (
+        rows.map((r) => (
+          <div
+            key={`${mode}-${r.userId}-${r.rank}`}
+            style={{
+              display: "grid",
+              gridTemplateColumns: "70px 1fr 120px",
+              padding: 12,
+              borderTop: "1px solid rgba(255,255,255,0.08)",
+              alignItems: "center",
+            }}
+          >
+            <div style={{ fontWeight: 900 }}>{r.rank}</div>
+
+            <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              <div style={{ fontWeight: 800 }}>{r.displayName || "Guardião"}</div>
+              <div style={{ fontSize: 12, opacity: 0.7 }}>{r.email || ""}</div>
+            </div>
+
+            <div style={{ textAlign: "right", fontWeight: 900, fontSize: 16 }}>
+              {valueOf(r)}
+            </div>
+          </div>
+        ))
+      ) : (
+        <div style={{ padding: 12, opacity: 0.8 }}>Sem dados.</div>
+      )}
+    </div>
+  );
+}
 
 export default function LeaderboardPage() {
-  const [tab, setTab] = useState("level"); // "level" | "cristais"
-  const [q, setQ] = useState("");
+  const [tab, setTab] = useState("season"); // season | level | reliquias
   const [loading, setLoading] = useState(true);
-  const [data, setData] = useState(null);
-  const [error, setError] = useState(null);
+  const [err, setErr] = useState("");
 
-  async function load(t) {
-    setLoading(true);
-    setError(null);
+  // cache por aba: evita refazer request ao alternar
+  const [data, setData] = useState({
+    season: null,
+    level: null,
+    reliquias: null,
+  });
+
+  async function loadCurrent(force = false) {
     try {
-      const res = await apiFetch(`/api/leaderboard?type=${t}&limit=50`);
-      setData(res);
+      setErr("");
+
+      // se já tem cache e não é force, não recarrega
+      if (!force && data[tab]) {
+        setLoading(false);
+        return;
+      }
+
+      setLoading(true);
+
+      const resp = await apiGet(`/api/leaderboard/${tab}?limit=50`);
+      if (!resp?.ok) throw new Error(resp?.error || "Falha ao carregar ranking");
+
+      setData((prev) => ({ ...prev, [tab]: resp.rows || [] }));
     } catch (e) {
-      setError(e?.message || "Erro ao carregar leaderboard");
-      setData(null);
+      setErr(e?.message || "Erro");
     } finally {
       setLoading(false);
     }
   }
 
   useEffect(() => {
-    load(tab);
+    let alive = true;
+
+    (async () => {
+      if (!alive) return;
+      await loadCurrent(false);
+    })();
+
+    return () => {
+      alive = false;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
 
-  const filtered = useMemo(() => {
-    const items = data?.items || [];
-    const query = q.trim().toLowerCase();
-    if (!query) return items;
-    return items.filter((it) =>
-      String(it.displayName || "").toLowerCase().includes(query)
-    );
-  }, [data, q]);
+  const rows = useMemo(() => data[tab] || [], [data, tab]);
 
   return (
-    <div style={{ padding: 40, maxWidth: 800, margin: "0 auto" }}>
-      <h1>Leaderboard</h1>
-      <p style={{ opacity: 0.8, marginTop: 6 }}>
-        Ranking público (sem e-mails / IDs).
-      </p>
+    <AuthGate>
+      <div style={{ maxWidth: 980, margin: "0 auto", padding: "32px 18px", color: "white" }}>
+        <h1 style={{ fontSize: 34, marginBottom: 6 }}>Ranking</h1>
+        <div style={{ opacity: 0.8, marginBottom: 16 }}>
+          Season = ordem por Cristais Sonoros • Nível e Relíquias em rankings separados
+        </div>
 
-      {/* Tabs */}
-      <div style={{ display: "flex", gap: 10, marginTop: 20 }}>
-        <button
-          onClick={() => setTab("level")}
-          style={{
-            padding: "10px 14px",
-            cursor: "pointer",
-            border: "1px solid #333",
-            borderRadius: 8,
-            opacity: tab === "level" ? 1 : 0.6,
-          }}
-        >
-          🧙 Nível
-        </button>
-        <button
-          onClick={() => setTab("cristais")}
-          style={{
-            padding: "10px 14px",
-            cursor: "pointer",
-            border: "1px solid #333",
-            borderRadius: 8,
-            opacity: tab === "cristais" ? 1 : 0.6,
-          }}
-        >
-          💎 Cristais
-        </button>
-      </div>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
+          <TabButton active={tab === "season"} onClick={() => setTab("season")}>
+            💎 Ranking da Season (Cristais)
+          </TabButton>
 
-      {/* Busca */}
-      <div style={{ marginTop: 16 }}>
-        <input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Buscar pelo nome..."
-          style={{
-            width: "100%",
-            padding: 10,
-            fontSize: 16,
-            borderRadius: 8,
-            border: "1px solid #333",
-          }}
-        />
-      </div>
+          <TabButton active={tab === "level"} onClick={() => setTab("level")}>
+            ⭐ Ranking de Nível
+          </TabButton>
 
-      {/* Estado */}
-      {loading && <p style={{ marginTop: 18 }}>Carregando...</p>}
-      {error && <p style={{ marginTop: 18, color: "red" }}>{error}</p>}
+          <TabButton active={tab === "reliquias"} onClick={() => setTab("reliquias")}>
+            🏆 Ranking de Relíquias
+          </TabButton>
 
-      {/* Tabela */}
-      {!loading && !error && (
-        <div style={{ marginTop: 18 }}>
-          <div
+          <button
+            onClick={() => loadCurrent(true)}
             style={{
-              display: "grid",
-              gridTemplateColumns: "70px 1fr 140px",
-              gap: 10,
+              marginLeft: "auto",
               padding: "10px 12px",
-              borderBottom: "1px solid #333",
-              opacity: 0.8,
-              fontWeight: 600,
+              borderRadius: 12,
+              border: "1px solid rgba(255,255,255,0.12)",
+              background: "rgba(255,255,255,0.06)",
+              color: "white",
+              cursor: "pointer",
             }}
           >
-            <div>#</div>
-            <div>Guardião</div>
-            <div style={{ textAlign: "right" }}>
-              {tab === "level" ? "Nível" : "Cristais"}
-            </div>
-          </div>
-
-          {filtered.length === 0 ? (
-            <p style={{ marginTop: 16, opacity: 0.8 }}>Nenhum resultado.</p>
-          ) : (
-            filtered.map((it) => (
-              <div
-                key={`${it.rank}-${it.displayName}`}
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "70px 1fr 140px",
-                  gap: 10,
-                  padding: "10px 12px",
-                  borderBottom: "1px solid #222",
-                }}
-              >
-                <div style={{ opacity: 0.9 }}>{it.rank}</div>
-                <div style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
-                  {it.displayName}
-                </div>
-                <div style={{ textAlign: "right" }}>
-                  {tab === "level" ? it.level : it.cristais}
-                </div>
-              </div>
-            ))
-          )}
+            🔄 Atualizar
+          </button>
         </div>
-      )}
 
-      {/* Refresh manual */}
-      <div style={{ marginTop: 18 }}>
-        <button
-          onClick={() => load(tab)}
-          style={{
-            padding: 10,
-            cursor: "pointer",
-            border: "1px solid #333",
-            borderRadius: 8,
-            opacity: 0.9,
-          }}
-        >
-          🔄 Atualizar
-        </button>
+        {loading ? <div style={{ opacity: 0.8 }}>Carregando...</div> : null}
+
+        {err ? (
+          <div style={{ border: "1px solid rgba(255,80,80,0.35)", padding: 12, borderRadius: 12 }}>
+            ❌ {err}
+          </div>
+        ) : null}
+
+        {!loading && !err ? <Table rows={rows} mode={tab} /> : null}
       </div>
-    </div>
+    </AuthGate>
   );
 }
