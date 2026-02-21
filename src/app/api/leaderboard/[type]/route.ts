@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 
 export const dynamic = "force-dynamic";
 
@@ -10,10 +11,11 @@ function getApiUrl() {
 const ALLOWED = new Set(["level", "reliquias", "season"]);
 
 export async function GET(
-  req: Request,
-  ctx: { params: { type: string } }
+  request: NextRequest,
+  context: { params: { type: string } }
 ) {
   const API_URL = getApiUrl();
+
   if (!API_URL) {
     return NextResponse.json(
       { ok: false, error: "API_URL não definida" },
@@ -21,7 +23,8 @@ export async function GET(
     );
   }
 
-  const type = String(ctx?.params?.type || "").toLowerCase();
+  const type = context.params.type?.toLowerCase();
+
   if (!ALLOWED.has(type)) {
     return NextResponse.json(
       { ok: false, error: "Tipo inválido de leaderboard" },
@@ -29,9 +32,9 @@ export async function GET(
     );
   }
 
-  const auth = req.headers.get("authorization") || "";
+  const auth = request.headers.get("authorization") || "";
 
-  const { searchParams } = new URL(req.url);
+  const { searchParams } = new URL(request.url);
   const limit = searchParams.get("limit") || "10";
 
   const r = await fetch(
