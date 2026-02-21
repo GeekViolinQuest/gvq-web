@@ -12,10 +12,9 @@ const ALLOWED = new Set(["level", "reliquias", "season"]);
 
 export async function GET(
   request: NextRequest,
-  context: { params: { type: string } }
+  context: { params: Promise<{ type: string }> } // 👈 aqui é o ponto-chave
 ) {
   const API_URL = getApiUrl();
-
   if (!API_URL) {
     return NextResponse.json(
       { ok: false, error: "API_URL não definida" },
@@ -23,9 +22,10 @@ export async function GET(
     );
   }
 
-  const type = context.params.type?.toLowerCase();
+  const { type } = await context.params; // 👈 e aqui
+  const normalizedType = String(type || "").toLowerCase();
 
-  if (!ALLOWED.has(type)) {
+  if (!ALLOWED.has(normalizedType)) {
     return NextResponse.json(
       { ok: false, error: "Tipo inválido de leaderboard" },
       { status: 404 }
@@ -33,12 +33,11 @@ export async function GET(
   }
 
   const auth = request.headers.get("authorization") || "";
-
   const { searchParams } = new URL(request.url);
   const limit = searchParams.get("limit") || "10";
 
   const r = await fetch(
-    `${API_URL}/api/leaderboard/${type}?limit=${encodeURIComponent(limit)}`,
+    `${API_URL}/api/leaderboard/${normalizedType}?limit=${encodeURIComponent(limit)}`,
     {
       method: "GET",
       headers: { Authorization: auth },
