@@ -9,7 +9,13 @@ export default function SeasonPage() {
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const [epicInfo, setEpicInfo] = useState({ loading: true, active: false, event: null });
+  const [epicInfo, setEpicInfo] = useState({
+    loading: true,
+    active: false,
+    event: null,
+    alreadySubmitted: false,
+  });
+
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
@@ -18,18 +24,27 @@ export default function SeasonPage() {
 
     async function loadEpic() {
       try {
-        setEpicInfo({ loading: true, active: false, event: null });
+        setEpicInfo({ loading: true, active: false, event: null, alreadySubmitted: false });
+
         const r = await apiGet("/api/season/epic-active");
         if (!alive) return;
 
         if (!r?.ok) throw new Error(r?.error || "Falha ao checar Quest Épica");
-        setEpicInfo({ loading: false, active: !!r.active, event: r.event || null });
 
-        // se não tem épica, garante semanal selecionada
-        if (!r.active) setTab("weekly");
-      } catch (e) {
+        // backend retorna { ok, event: null | {...}, alreadySubmitted }
+        const active = !!r.event;
+
+        setEpicInfo({
+          loading: false,
+          active,
+          event: r.event || null,
+          alreadySubmitted: !!r.alreadySubmitted,
+        });
+
+        if (!active) setTab("weekly");
+      } catch {
         if (!alive) return;
-        setEpicInfo({ loading: false, active: false, event: null });
+        setEpicInfo({ loading: false, active: false, event: null, alreadySubmitted: false });
       }
     }
 
@@ -39,7 +54,7 @@ export default function SeasonPage() {
 
   const epicDisabled = useMemo(() => {
     if (epicInfo.loading) return true;
-    return !epicInfo.active;
+    return !epicInfo.active || epicInfo.alreadySubmitted;
   }, [epicInfo]);
 
   async function submit() {
@@ -55,22 +70,23 @@ export default function SeasonPage() {
     }
 
     try {
-      const endpoint =
-        tab === "weekly" ? "/api/season/weekly-submit" : "/api/season/epic-submit";
+      // ✅ rotas reais do teu backend:
+      const endpoint = tab === "weekly" ? "/api/season/submit" : "/api/season/epic-submit";
 
+      // ✅ backend espera { link }
       const r = await apiFetch(endpoint, {
         method: "POST",
         auth: true,
-        body: { url: cleaned },
+        body: { link: cleaned },
       });
 
       if (!r?.ok) throw new Error(r?.error || "Falha ao enviar");
 
-      if (r.type === "weekly") {
-        setMessage(`✅ Quest Semanal registrada! (+${r.gained ?? 2} Cristais)`);
+      if (r.type === "season") {
+        setMessage("✅ Quest Semanal registrada!");
       } else {
         const title = r?.event?.title ? ` — ${r.event.title}` : "";
-        setMessage(`🔥 Quest Épica registrada${title}! (+${r.gained ?? 5} Cristais)`);
+        setMessage(`🔥 Quest Épica registrada${title}!`);
       }
 
       setUrl("");
@@ -117,8 +133,12 @@ export default function SeasonPage() {
               cursor: epicDisabled ? "not-allowed" : "pointer",
             }}
             title={
-              epicDisabled
+              epicInfo.loading
+                ? "Carregando..."
+                : !epicInfo.active
                 ? "Não há Quest Épica ativa no momento."
+                : epicInfo.alreadySubmitted
+                ? "Você já enviou esta Quest Épica."
                 : "Quest Épica disponível"
             }
           >

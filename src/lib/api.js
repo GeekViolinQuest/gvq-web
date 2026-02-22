@@ -1,4 +1,4 @@
-// src/lib/api.js (Padrão A: sempre chama o proxy do Next em /api/*)
+// src/lib/api.js
 
 export function getToken() {
   if (typeof window === "undefined") return null;
@@ -15,6 +15,18 @@ export function clearToken() {
   localStorage.removeItem("gvq_token");
 }
 
+function getBase() {
+  // remove barra final pra evitar //api/...
+  return (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
+}
+
+function joinUrl(base, path) {
+  if (!base) return path; // fallback (útil em dev)
+  if (path.startsWith("http")) return path;
+  if (!path.startsWith("/")) path = `/${path}`;
+  return `${base}${path}`;
+}
+
 export async function apiFetch(path, { method = "GET", body, auth = false } = {}) {
   const headers = new Headers();
   headers.set("Content-Type", "application/json");
@@ -24,8 +36,7 @@ export async function apiFetch(path, { method = "GET", body, auth = false } = {}
     if (token) headers.set("Authorization", `Bearer ${token}`);
   }
 
-  const base = (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
-  const url = path.startsWith("http") ? path : `${base}${path}`;
+  const url = joinUrl(getBase(), path);
 
   const res = await fetch(url, {
     method,
@@ -44,18 +55,27 @@ export async function apiFetch(path, { method = "GET", body, auth = false } = {}
   return data;
 }
 
-export async function apiGet(path) {
-  const base = process.env.NEXT_PUBLIC_API_URL || "";
-  const url = `${base}${path}`;
+export async function apiGet(path, { auth = true } = {}) {
+  const headers = new Headers();
 
-  const token = getToken?.() || null;
+  if (auth) {
+    const token = getToken();
+    if (token) headers.set("Authorization", `Bearer ${token}`);
+  }
+
+  const url = joinUrl(getBase(), path);
 
   const res = await fetch(url, {
     method: "GET",
-    headers: {
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
+    headers,
+    cache: "no-store",
   });
 
-  return res.json();
+  // mantém o mesmo padrão do apiFetch: tenta ler json e propaga erro
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const msg = data?.error || `Erro HTTP ${res.status}`;
+    throw new Error(msg);
+  }
+  return data;
 }
