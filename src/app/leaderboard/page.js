@@ -23,8 +23,7 @@ function TabButton({ active, onClick, children }) {
 }
 
 function Table({ rows, mode }) {
-  const colLabel =
-    mode === "level" ? "Nível" : mode === "season" ? "Cristais" : "Relíquias";
+  const colLabel = mode === "level" ? "Nível" : mode === "season" ? "Cristais" : "Relíquias";
 
   const valueOf = (r) =>
     mode === "level" ? r.level : mode === "season" ? r.cristais : r.reliquiasCount;
@@ -66,8 +65,22 @@ function Table({ rows, mode }) {
             <div style={{ fontWeight: 900 }}>{r.rank}</div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-              <div style={{ fontWeight: 800 }}>{r.displayName || "Guardião"}</div>
-              <div style={{ fontSize: 12, opacity: 0.7 }}>{r.email || ""}</div>
+              <div style={{ fontWeight: 800 }}>
+                {r.displayName || "Guardião"}
+                {mode === "season" && r.tier ? (
+                  <span style={{ opacity: 0.85 }}> — {r.tier}</span>
+                ) : null}
+                {mode === "season" && r.isFirstEstelar ? (
+                  <span style={{ marginLeft: 8 }}>👑</span>
+                ) : null}
+              </div>
+
+              {/* email removido do ranking público */}
+              <div style={{ fontSize: 12, opacity: 0.7 }}>
+                {mode === "season" && r.tier
+                  ? "Ranking por Cristais Sonoros"
+                  : " "}
+              </div>
             </div>
 
             <div style={{ textAlign: "right", fontWeight: 900, fontSize: 16 }}>
@@ -98,7 +111,6 @@ export default function LeaderboardPage() {
     try {
       setErr("");
 
-      // se já tem cache e não é force, não recarrega
       if (!force && data[tab]) {
         setLoading(false);
         return;

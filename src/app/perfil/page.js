@@ -2,6 +2,7 @@
 
 import AuthGate from "@/components/AuthGate";
 import { apiGet } from "@/lib/api";
+import { apiFetch } from "@/lib/api";
 import { useEffect, useMemo, useState } from "react";
 
 function ItemCard({ title, subtitle, img, locked, tag }) {
@@ -17,7 +18,6 @@ function ItemCard({ title, subtitle, img, locked, tag }) {
         opacity: locked ? 0.35 : 1,
       }}
     >
-      {/* ✅ opcional: só mostra o bloco de imagem se existir img */}
       {img ? (
         <div
           style={{
@@ -79,6 +79,10 @@ export default function PerfilPage() {
   const [catalog, setCatalog] = useState(null);
   const [err, setErr] = useState("");
 
+  const [nick, setNick] = useState("");
+  const [savingNick, setSavingNick] = useState(false);
+  const [nickMsg, setNickMsg] = useState("");
+
   useEffect(() => {
     let alive = true;
 
@@ -99,6 +103,8 @@ export default function PerfilPage() {
 
         setMe(meResp);
         setCatalog(catResp);
+
+        setNick(meResp?.user?.publicNick || "");
       } catch (e) {
         if (!alive) return;
         setErr(e.message || "Erro");
@@ -113,6 +119,36 @@ export default function PerfilPage() {
       alive = false;
     };
   }, []);
+
+  async function saveNick() {
+    try {
+      setSavingNick(true);
+      setNickMsg("");
+
+      const resp = await apiFetch("/api/user/nick", {
+        method: "PATCH",
+        auth: true,
+        body: { nick },
+      });
+
+      if (!resp?.ok) throw new Error(resp?.error || "Falha ao salvar nick");
+
+      setMe((prev) => ({
+        ...prev,
+        user: {
+          ...prev.user,
+          publicNick: resp.publicNick,
+          displayName: resp.publicNick,
+        },
+      }));
+
+      setNickMsg("✅ Nick salvo!");
+    } catch (e) {
+      setNickMsg(`❌ ${e?.message || "Erro"}`);
+    } finally {
+      setSavingNick(false);
+    }
+  }
 
   const progress = me?.progress || {};
   const user = me?.user || {};
@@ -161,6 +197,57 @@ export default function PerfilPage() {
         <div style={{ opacity: 0.8, marginBottom: 22 }}>
           {user.displayName ? user.displayName : "Guardião"} · {user.email || ""}
         </div>
+
+        {!loading && !err ? (
+          <div
+            style={{
+              border: "1px solid rgba(255,255,255,0.12)",
+              borderRadius: 12,
+              padding: 14,
+              marginBottom: 16,
+            }}
+          >
+            <div style={{ fontWeight: 800, marginBottom: 6 }}>Nick público</div>
+            <div style={{ opacity: 0.8, fontSize: 13, marginBottom: 10 }}>
+              Esse nome aparece no Ranking e nas atividades públicas do site.
+            </div>
+
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <input
+                value={nick}
+                onChange={(e) => setNick(e.target.value)}
+                placeholder="Ex: Nizkalkat"
+                style={{
+                  flex: "1 1 260px",
+                  padding: 12,
+                  fontSize: 16,
+                  borderRadius: 12,
+                  border: "1px solid rgba(255,255,255,0.12)",
+                  background: "rgba(0,0,0,0.2)",
+                  color: "white",
+                }}
+              />
+
+              <button
+                onClick={saveNick}
+                disabled={savingNick}
+                style={{
+                  padding: "12px 14px",
+                  borderRadius: 12,
+                  border: "1px solid rgba(255,255,255,0.12)",
+                  background: "rgba(255,255,255,0.08)",
+                  color: "white",
+                  fontWeight: 800,
+                  cursor: "pointer",
+                }}
+              >
+                {savingNick ? "Salvando..." : "Salvar Nick"}
+              </button>
+            </div>
+
+            {nickMsg ? <div style={{ marginTop: 10, opacity: 0.9 }}>{nickMsg}</div> : null}
+          </div>
+        ) : null}
 
         {loading ? <div style={{ opacity: 0.8 }}>Carregando...</div> : null}
         {err ? (
@@ -248,7 +335,6 @@ export default function PerfilPage() {
                 gap: 12,
               }}
             >
-              {/* ✅ comportamento das runas tb: locked -> nome/código/imagen travados */}
               {runasList.map((r) => (
                 <ItemCard
                   key={`runa-${r.code}`}
@@ -269,7 +355,6 @@ export default function PerfilPage() {
                 gap: 12,
               }}
             >
-              {/* ✅ teu comportamento desejado: locked -> imagem/nome/código travados */}
               {reliquiasList.map((r) => (
                 <ItemCard
                   key={`rel-${r.code}`}
