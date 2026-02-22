@@ -20,7 +20,9 @@ function LinkedContent() {
       )}
 
       <p style={{ marginTop: 12 }}>
-        <Link href="/dashboard">Voltar ao dashboard</Link>
+        <Link href="/dashboard" style={{ color: "white" }}>
+          Voltar ao dashboard
+        </Link>
       </p>
     </>
   );
@@ -28,8 +30,12 @@ function LinkedContent() {
 
 export default function LinkedPage() {
   return (
-    <main style={{ padding: 24 }}>
+    <main style={{ padding: 24, color: "white" }}>
       <h1>Vínculo do Discord</h1>
+      <div style={{ opacity: 0.8, marginBottom: 14 }}>
+        (Legado / migração — o site funciona mesmo sem Discord.)
+      </div>
+
       <Suspense fallback={<p>Carregando...</p>}>
         <LinkedContent />
       </Suspense>

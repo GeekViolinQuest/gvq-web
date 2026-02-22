@@ -5,24 +5,66 @@ import { useRouter } from "next/navigation";
 import AuthGate from "@/components/AuthGate";
 import { apiFetch, clearToken } from "@/lib/api";
 
+function Button({ onClick, children, variant = "solid", disabled = false }) {
+  const base = {
+    padding: "10px 12px",
+    borderRadius: 12,
+    border: "1px solid rgba(255,255,255,0.12)",
+    cursor: disabled ? "not-allowed" : "pointer",
+    color: "white",
+    fontWeight: 800,
+    opacity: disabled ? 0.6 : 1,
+    background: variant === "solid" ? "rgba(255,255,255,0.10)" : "rgba(255,255,255,0.06)",
+  };
+
+  return (
+    <button onClick={onClick} disabled={disabled} style={base}>
+      {children}
+    </button>
+  );
+}
+
+function StatCard({ label, value }) {
+  return (
+    <div
+      style={{
+        border: "1px solid rgba(255,255,255,0.12)",
+        borderRadius: 12,
+        padding: 14,
+        background: "rgba(255,255,255,0.03)",
+      }}
+    >
+      <div style={{ opacity: 0.75, fontSize: 13 }}>{label}</div>
+      <div style={{ fontSize: 22, fontWeight: 900, marginTop: 4 }}>{value}</div>
+    </div>
+  );
+}
+
 export default function DashboardPage() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState("");
+
   const router = useRouter();
 
-  useEffect(() => {
-    async function load() {
-      try {
-        const res = await apiFetch("/api/user/me", { auth: true });
-        setData(res);
-      } catch (err) {
-        console.error("Dashboard fetch error:", err);
-        setData(null);
-      } finally {
-        setLoading(false);
-      }
+  async function load() {
+    try {
+      setErr("");
+      setLoading(true);
+      const res = await apiFetch("/api/user/me", { auth: true });
+      setData(res);
+    } catch (e) {
+      console.error("Dashboard fetch error:", e);
+      setData(null);
+      setErr(e?.message || "Falha ao carregar /me");
+    } finally {
+      setLoading(false);
     }
+  }
+
+  useEffect(() => {
     load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function handleLogout() {
@@ -30,91 +72,181 @@ export default function DashboardPage() {
     router.replace("/login");
   }
 
+  const user = data?.user || {};
+  const progress = data?.progress || {};
+
+  const displayName = user?.displayName || "Guardião";
+  const email = user?.email || "";
+
+  const isLinkedDiscord = !!user?.discordId; // só informativo (legado)
+
   return (
     <AuthGate>
-      <div style={{ padding: 40 }}>
+      <div style={{ maxWidth: 980, margin: "0 auto", padding: "32px 18px", color: "white" }}>
         <div
           style={{
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
+            gap: 10,
+            flexWrap: "wrap",
           }}
         >
-          <h1>Dashboard</h1>
-          <button onClick={handleLogout} style={{ padding: 10, cursor: "pointer" }}>
-            Sair
-          </button>
+          <div>
+            <h1 style={{ fontSize: 34, marginBottom: 6 }}>Dashboard</h1>
+            <div style={{ opacity: 0.8 }}>
+              {displayName} · {email}
+            </div>
+          </div>
+
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <Button onClick={load} variant="ghost" disabled={loading}>
+              🔄 Atualizar
+            </Button>
+            <Button onClick={handleLogout} variant="ghost">
+              Sair
+            </Button>
+          </div>
         </div>
 
-        {loading && <p>Carregando dados...</p>}
+        {loading ? <div style={{ marginTop: 14, opacity: 0.8 }}>Carregando...</div> : null}
 
-        {!loading && data && data.linked === false && (
-          <div style={{ marginTop: 20 }}>
-            <p>⚠️ Seu Discord ainda não está vinculado.</p>
-            <p>Vincule seu Discord para sincronizar conquistas.</p>
+        {err ? (
+          <div
+            style={{
+              marginTop: 14,
+              border: "1px solid rgba(255,80,80,0.35)",
+              padding: 12,
+              borderRadius: 12,
+            }}
+          >
+            ❌ {err}
           </div>
-        )}
+        ) : null}
 
-        {!loading && data && data.linked && data.progress && (
-          <div style={{ marginTop: 20 }}>
-            <h2>{data.user?.displayName || data.user?.email || "Usuário"}</h2>
+        {!loading && data?.ok ? (
+          <>
+            {/* HUB de navegação */}
+            <div style={{ marginTop: 16 }}>
+              <div style={{ opacity: 0.8, marginBottom: 10 }}>
+                Ações rápidas
+              </div>
 
-            <div style={{ marginTop: 20 }}>
-              <p><strong>Nível:</strong> {data.progress.level}</p>
-              <p><strong>Cristais Sonoros:</strong> {data.progress.cristais}</p>
-              <p><strong>Runas:</strong> {data.progress.runas?.length || 0}</p>
-              <p><strong>Relíquias:</strong> {data.progress.reliquias?.length || 0}</p>
-              <p><strong>Bônus:</strong> {data.progress.bonus?.length || 0}</p>
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                <Button onClick={() => router.push("/perfil")}>👤 Perfil</Button>
+                <Button onClick={() => router.push("/resgatar")}>🎟️ Resgatar código</Button>
+                <Button onClick={() => router.push("/season")}>🧭 Season Quests</Button>
+                <Button onClick={() => router.push("/leaderboard")}>🏆 Leaderboard</Button>
+                <Button onClick={() => router.push("/forum")}>💬 Comunidade</Button>
+              </div>
             </div>
 
-            <div style={{ marginTop: 30 }}>
-              <h3>Últimas conquistas</h3>
+            {/* Cards com stats */}
+            <div
+              style={{
+                marginTop: 18,
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+                gap: 12,
+              }}
+            >
+              <StatCard label="Nível" value={progress.level ?? 0} />
+              <StatCard label="Cristais Sonoros" value={progress.cristais ?? 0} />
+              <StatCard label="Runas" value={(progress.runas || []).length} />
+              <StatCard label="Relíquias" value={(progress.reliquias || []).length} />
+            </div>
 
-              <div style={{ marginTop: 12 }}>
-                <p><strong>Runas (últimas 5):</strong></p>
-                <ul>
-                  {[...(data.progress.runas || [])].slice(-5).reverse().map((r, idx) => (
-                    <li key={`${r}-${idx}`}>{r}</li>
-                  ))}
-                </ul>
+            {/* status/legado do Discord (informativo) */}
+            <div
+              style={{
+                marginTop: 16,
+                border: "1px solid rgba(255,255,255,0.12)",
+                borderRadius: 12,
+                padding: 12,
+                background: "rgba(255,255,255,0.03)",
+              }}
+            >
+              <div style={{ fontWeight: 900, marginBottom: 6 }}>Status</div>
+              <div style={{ opacity: 0.85, fontSize: 13, lineHeight: 1.45 }}>
+                {isLinkedDiscord ? (
+                  <>✅ Discord vinculado (legado/migração): <span style={{ opacity: 0.95 }}>{user.discordId}</span></>
+                ) : (
+                  <>ℹ️ Discord não vinculado (ok). O site funciona independente disso.</>
+                )}
               </div>
+            </div>
 
-              <div style={{ marginTop: 12 }}>
-                <p><strong>Relíquias (últimas 5):</strong></p>
-                <ul>
-                  {[...(data.progress.reliquias || [])].slice(-5).reverse().map((r, idx) => (
-                    <li key={`${r}-${idx}`}>{r}</li>
-                  ))}
-                </ul>
-              </div>
+            {/* Últimas conquistas (códigos crus — depois a gente troca pelo nome do catálogo se quiser) */}
+            <div style={{ marginTop: 18 }}>
+              <div style={{ fontWeight: 1000, marginBottom: 10 }}>Últimas conquistas</div>
 
-              <div style={{ marginTop: 12 }}>
-                <p><strong>Bônus (últimos 5):</strong></p>
-                <ul>
-                  {[...(data.progress.bonus || [])].slice(-5).reverse().map((b, idx) => (
-                    <li key={`${b}-${idx}`}>{b}</li>
-                  ))}
-                </ul>
-              </div>
-
-              {Array.isArray(data.progress.season) && data.progress.season.length > 0 && (
-                <div style={{ marginTop: 12 }}>
-                  <p><strong>Season (últimos 5 códigos):</strong></p>
-                  <ul>
-                    {[...data.progress.season].slice(-5).reverse().map((s, idx) => (
-                      <li key={`${s.codigo}-${idx}`}>
-                        {s.codigo}
-                        {s.data ? ` — ${s.data}` : ""}
-                      </li>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 12 }}>
+                <div
+                  style={{
+                    border: "1px solid rgba(255,255,255,0.12)",
+                    borderRadius: 12,
+                    padding: 12,
+                    background: "rgba(255,255,255,0.03)",
+                  }}
+                >
+                  <div style={{ fontWeight: 900, marginBottom: 8 }}>Runas (últimas 5)</div>
+                  <ul style={{ margin: 0, paddingLeft: 18, opacity: 0.9 }}>
+                    {[...(progress.runas || [])].slice(-5).reverse().map((r, idx) => (
+                      <li key={`${r}-${idx}`}>{r}</li>
                     ))}
+                    {(!progress.runas || progress.runas.length === 0) ? (
+                      <li style={{ opacity: 0.7 }}>Nenhuma ainda</li>
+                    ) : null}
                   </ul>
                 </div>
-              )}
-            </div>
-          </div>
-        )}
 
-        {!loading && !data && <p>Não foi possível carregar os dados do dashboard.</p>}
+                <div
+                  style={{
+                    border: "1px solid rgba(255,255,255,0.12)",
+                    borderRadius: 12,
+                    padding: 12,
+                    background: "rgba(255,255,255,0.03)",
+                  }}
+                >
+                  <div style={{ fontWeight: 900, marginBottom: 8 }}>Relíquias (últimas 5)</div>
+                  <ul style={{ margin: 0, paddingLeft: 18, opacity: 0.9 }}>
+                    {[...(progress.reliquias || [])].slice(-5).reverse().map((r, idx) => (
+                      <li key={`${r}-${idx}`}>{r}</li>
+                    ))}
+                    {(!progress.reliquias || progress.reliquias.length === 0) ? (
+                      <li style={{ opacity: 0.7 }}>Nenhuma ainda</li>
+                    ) : null}
+                  </ul>
+                </div>
+
+                <div
+                  style={{
+                    border: "1px solid rgba(255,255,255,0.12)",
+                    borderRadius: 12,
+                    padding: 12,
+                    background: "rgba(255,255,255,0.03)",
+                  }}
+                >
+                  <div style={{ fontWeight: 900, marginBottom: 8 }}>Bônus (últimos 5)</div>
+                  <ul style={{ margin: 0, paddingLeft: 18, opacity: 0.9 }}>
+                    {[...(progress.bonus || [])].slice(-5).reverse().map((b, idx) => (
+                      <li key={`${b}-${idx}`}>{b}</li>
+                    ))}
+                    {(!progress.bonus || progress.bonus.length === 0) ? (
+                      <li style={{ opacity: 0.7 }}>Nenhum ainda</li>
+                    ) : null}
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </>
+        ) : null}
+
+        {!loading && !data?.ok ? (
+          <div style={{ marginTop: 14, opacity: 0.85 }}>
+            Não foi possível carregar os dados do dashboard.
+          </div>
+        ) : null}
       </div>
     </AuthGate>
   );
