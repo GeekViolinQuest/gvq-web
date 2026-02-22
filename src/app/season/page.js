@@ -4,10 +4,26 @@ import AuthGate from "@/components/AuthGate";
 import { apiFetch, apiGet } from "@/lib/api";
 import { useEffect, useMemo, useState } from "react";
 
+function looksLikeUrl(s) {
+  try {
+    const u = new URL(String(s || "").trim());
+    return ["http:", "https:"].includes(u.protocol);
+  } catch {
+    return false;
+  }
+}
+
 export default function SeasonPage() {
   const [tab, setTab] = useState("weekly"); // weekly | epic
-  const [url, setUrl] = useState("");
+  const [link, setLink] = useState("");
   const [loading, setLoading] = useState(false);
+
+  const [weekly, setWeekly] = useState({
+    loading: true,
+    weekKey: null,
+    alreadySubmitted: false,
+    submission: null,
+  });
 
   const [epicInfo, setEpicInfo] = useState({
     loading: true,
@@ -19,61 +35,113 @@ export default function SeasonPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    let alive = true;
+  async function loadWeeklyStatus(signal) {
+    try {
+      setWeekly((p) => ({ ...p, loading: true }));
 
-    async function loadEpic() {
-      try {
-        setEpicInfo({ loading: true, active: false, event: null, alreadySubmitted: false });
+      const r = await apiGet("/api/season/weekly-status", { signal });
+      if (!r?.ok) throw new Error(r?.error || "Falha ao checar Quest Semanal");
 
-        const r = await apiGet("/api/season/epic-active");
-        if (!alive) return;
-
-        if (!r?.ok) throw new Error(r?.error || "Falha ao checar Quest Épica");
-
-        // backend retorna { ok, event: null | {...}, alreadySubmitted }
-        const active = !!r.event;
-
-        setEpicInfo({
-          loading: false,
-          active,
-          event: r.event || null,
-          alreadySubmitted: !!r.alreadySubmitted,
-        });
-
-        if (!active) setTab("weekly");
-      } catch {
-        if (!alive) return;
-        setEpicInfo({ loading: false, active: false, event: null, alreadySubmitted: false });
-      }
+      setWeekly({
+        loading: false,
+        weekKey: r.weekKey || null,
+        alreadySubmitted: !!r.alreadySubmitted,
+        submission: r.submission || null,
+      });
+    } catch (e) {
+      if (e?.name === "AbortError") return;
+      setWeekly({ loading: false, weekKey: null, alreadySubmitted: false, submission: null });
     }
+  }
 
-    loadEpic();
-    return () => (alive = false);
+  async function loadEpic(signal) {
+    try {
+      setEpicInfo({ loading: true, active: false, event: null, alreadySubmitted: false });
+
+      const r = await apiGet("/api/season/epic-active", { signal });
+      if (!r?.ok) throw new Error(r?.error || "Falha ao checar Quest Épica");
+
+      // compat com os dois formatos:
+      // A) { ok, active, event, alreadySubmitted }
+      // B) { ok, event: null | {...}, alreadySubmitted }
+      const active = typeof r.active === "boolean" ? r.active : !!r.event;
+
+      setEpicInfo({
+        loading: false,
+        active,
+        event: r.event || null,
+        alreadySubmitted: !!r.alreadySubmitted,
+      });
+
+      if (!active) setTab("weekly");
+    } catch (e) {
+      if (e?.name === "AbortError") return;
+      setEpicInfo({ loading: false, active: false, event: null, alreadySubmitted: false });
+    }
+  }
+
+  useEffect(() => {
+    const ac = new AbortController();
+
+    (async () => {
+      await Promise.all([loadWeeklyStatus(ac.signal), loadEpic(ac.signal)]);
+    })();
+
+    return () => ac.abort();
   }, []);
 
   const epicDisabled = useMemo(() => {
     if (epicInfo.loading) return true;
-    return !epicInfo.active || epicInfo.alreadySubmitted;
+    return !epicInfo.active; // botão de tab épica bloqueia só se não estiver ativa
   }, [epicInfo]);
+
+  const weeklyDisabled = useMemo(() => {
+    if (weekly.loading) return true;
+    return !!weekly.alreadySubmitted;
+  }, [weekly]);
+
+  const submitDisabled = useMemo(() => {
+    const cleaned = link.trim();
+
+    if (loading) return true;
+    if (!cleaned) return true;
+
+    if (tab === "weekly") return weeklyDisabled;
+    // épica: se não ativa ou já enviada
+    return epicDisabled || epicInfo.alreadySubmitted;
+  }, [loading, link, tab, weeklyDisabled, epicDisabled, epicInfo.alreadySubmitted]);
+
+  async function refreshAll() {
+    setMessage("");
+    setError("");
+    const ac = new AbortController();
+
+    // não precisa guardar controller global; só evita duplicar setState
+    await Promise.all([loadWeeklyStatus(ac.signal), loadEpic(ac.signal)]);
+  }
 
   async function submit() {
     setLoading(true);
     setMessage("");
     setError("");
 
-    const cleaned = url.trim();
+    const cleaned = link.trim();
     if (!cleaned) {
       setLoading(false);
       setError("Cole o link do seu vídeo.");
       return;
     }
 
+    // validação leve (backend é a fonte da verdade)
+    if (!looksLikeUrl(cleaned)) {
+      setLoading(false);
+      setError("Esse link não parece uma URL válida. Cole o link completo (https://...).");
+      return;
+    }
+
     try {
-      // ✅ rotas reais do teu backend:
       const endpoint = tab === "weekly" ? "/api/season/submit" : "/api/season/epic-submit";
 
-      // ✅ backend espera { link }
       const r = await apiFetch(endpoint, {
         method: "POST",
         auth: true,
@@ -82,14 +150,24 @@ export default function SeasonPage() {
 
       if (!r?.ok) throw new Error(r?.error || "Falha ao enviar");
 
-      if (r.type === "season") {
-        setMessage("✅ Quest Semanal registrada!");
+      // ✅ IMPORTANTE: backend novo manda type "season" (weekly) e "epic" (épica)
+      // então decidimos pelo TAB, não pelo r.type
+      if (tab === "weekly") {
+        const gained = r.gained ?? 2;
+        const total = r.newCristais ?? "—";
+        const bonus = r.firstEstelar ? " 🌟 Você foi o PRIMEIRO ESTELAR desta Season!" : "";
+        setMessage(`✅ Quest Semanal registrada! (+${gained} Cristais) • Total: ${total} 💎${bonus}`);
+        await loadWeeklyStatus();
       } else {
+        const gained = r.gained ?? 5;
+        const total = r.newCristais ?? "—";
         const title = r?.event?.title ? ` — ${r.event.title}` : "";
-        setMessage(`🔥 Quest Épica registrada${title}!`);
+        const bonus = r.firstEstelar ? " 🌟 Você foi o PRIMEIRO ESTELAR desta Season!" : "";
+        setMessage(`🔥 Quest Épica registrada${title}! (+${gained} Cristais) • Total: ${total} 💎${bonus}`);
+        await loadEpic();
       }
 
-      setUrl("");
+      setLink("");
     } catch (e) {
       setError(e?.message || "Erro ao enviar");
     } finally {
@@ -102,10 +180,11 @@ export default function SeasonPage() {
       <div style={{ maxWidth: 820, margin: "0 auto", padding: "32px 18px", color: "white" }}>
         <h1 style={{ fontSize: 34, marginBottom: 6 }}>Season Quests</h1>
         <div style={{ opacity: 0.8, marginBottom: 18 }}>
-          Envie o link do seu vídeo (YouTube / Shorts / etc).
+          Envie o link do seu vídeo (YouTube / Shorts / TikTok / Instagram).
         </div>
 
-        <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
+        {/* Tabs */}
+        <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
           <button
             onClick={() => setTab("weekly")}
             style={{
@@ -132,20 +211,58 @@ export default function SeasonPage() {
               opacity: epicDisabled ? 0.35 : 1,
               cursor: epicDisabled ? "not-allowed" : "pointer",
             }}
-            title={
-              epicInfo.loading
-                ? "Carregando..."
-                : !epicInfo.active
-                ? "Não há Quest Épica ativa no momento."
-                : epicInfo.alreadySubmitted
-                ? "Você já enviou esta Quest Épica."
-                : "Quest Épica disponível"
-            }
+            title={epicDisabled ? "Não há Quest Épica ativa no momento." : "Quest Épica disponível"}
           >
             ⚔️ Quest Épica
           </button>
+
+          <button
+            onClick={refreshAll}
+            style={{
+              marginLeft: "auto",
+              padding: "10px 12px",
+              borderRadius: 12,
+              border: "1px solid rgba(255,255,255,0.12)",
+              background: "rgba(255,255,255,0.06)",
+              color: "white",
+              cursor: "pointer",
+            }}
+          >
+            🔄 Atualizar
+          </button>
         </div>
 
+        {/* Info semanal */}
+        {tab === "weekly" ? (
+          <div
+            style={{
+              border: "1px solid rgba(255,255,255,0.12)",
+              borderRadius: 12,
+              padding: 12,
+              marginBottom: 12,
+              background: "rgba(255,255,255,0.03)",
+              opacity: weekly.loading ? 0.8 : 1,
+            }}
+          >
+            <div style={{ fontWeight: 800 }}>📌 Semana atual: {weekly.weekKey || "—"}</div>
+            {weekly.alreadySubmitted ? (
+              <div style={{ marginTop: 6, fontSize: 13, opacity: 0.85 }}>
+                ✅ Você já enviou a Quest Semanal desta semana.
+                {weekly.submission?.link ? (
+                  <div style={{ marginTop: 6, fontSize: 12, opacity: 0.8, wordBreak: "break-word" }}>
+                    Link enviado: {weekly.submission.link}
+                  </div>
+                ) : null}
+              </div>
+            ) : (
+              <div style={{ marginTop: 6, fontSize: 13, opacity: 0.85 }}>
+                Você ainda não enviou nesta semana. Envie seu link abaixo. (+2 Cristais)
+              </div>
+            )}
+          </div>
+        ) : null}
+
+        {/* Info épica */}
         {tab === "epic" && epicInfo.active && epicInfo.event ? (
           <div
             style={{
@@ -161,12 +278,23 @@ export default function SeasonPage() {
               Evento ativo até:{" "}
               {epicInfo.event.endsAt ? new Date(epicInfo.event.endsAt).toLocaleString("pt-BR") : "—"}
             </div>
+
+            {epicInfo.alreadySubmitted ? (
+              <div style={{ marginTop: 8, fontSize: 13, opacity: 0.85 }}>
+                ✅ Você já enviou esta Quest Épica.
+              </div>
+            ) : (
+              <div style={{ marginTop: 8, fontSize: 13, opacity: 0.85 }}>
+                Envie seu link abaixo. (+5 Cristais)
+              </div>
+            )}
           </div>
         ) : null}
 
+        {/* Input */}
         <input
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
+          value={link}
+          onChange={(e) => setLink(e.target.value)}
           placeholder="Cole aqui o link do seu vídeo..."
           style={{
             width: "100%",
@@ -181,7 +309,7 @@ export default function SeasonPage() {
 
         <button
           onClick={submit}
-          disabled={loading}
+          disabled={submitDisabled}
           style={{
             marginTop: 12,
             width: "100%",
@@ -190,10 +318,17 @@ export default function SeasonPage() {
             border: "1px solid rgba(255,255,255,0.12)",
             background: "rgba(255,255,255,0.10)",
             color: "white",
-            cursor: "pointer",
+            cursor: submitDisabled ? "not-allowed" : "pointer",
+            opacity: submitDisabled ? 0.5 : 1,
           }}
         >
-          {loading ? "Enviando..." : "Enviar Quest"}
+          {loading
+            ? "Enviando..."
+            : tab === "weekly" && weekly.alreadySubmitted
+            ? "Quest Semanal já enviada"
+            : tab === "epic" && epicInfo.alreadySubmitted
+            ? "Quest Épica já enviada"
+            : "Enviar Quest"}
         </button>
 
         {message ? <div style={{ marginTop: 14, color: "#9ae6b4" }}>{message}</div> : null}

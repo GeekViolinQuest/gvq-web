@@ -72,17 +72,133 @@ function ItemCard({ title, subtitle, img, locked, tag }) {
   );
 }
 
+/**
+ * NickEditor (site-first)
+ * - chama POST /api/user/display-name
+ * - recarrega /me via onUpdated
+ * - usa displayNameRemaining do /me para bloquear mudanças
+ */
+function NickEditor({ user, onUpdated }) {
+  const currentName = user?.displayName || "";
+  const remaining = user?.displayNameRemaining ?? 1;
+
+  // regra: se não tem nome ainda, pode definir “de graça”
+  const canChange = !currentName || remaining > 0;
+
+  const [name, setName] = useState(currentName);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [err, setErr] = useState("");
+
+  // quando user muda (reload do /me), sincroniza input
+  useEffect(() => {
+    setName(currentName || "");
+  }, [currentName]);
+
+  async function save() {
+    setSaving(true);
+    setMsg("");
+    setErr("");
+
+    try {
+      const res = await apiFetch("/api/user/display-name", {
+        method: "POST",
+        auth: true,
+        body: { displayName: name },
+      });
+
+      if (!res?.ok) throw new Error(res?.error || "Falha ao salvar");
+
+      setMsg(res?.message || "✅ Nick atualizado!");
+      await onUpdated?.();
+    } catch (e) {
+      setErr(e?.message || "Erro");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div
+      style={{
+        border: "1px solid rgba(255,255,255,0.12)",
+        borderRadius: 12,
+        padding: 14,
+        marginBottom: 18,
+        background: "rgba(255,255,255,0.03)",
+      }}
+    >
+      <div style={{ fontWeight: 900, marginBottom: 8 }}>📝 Nome do Guardião</div>
+
+      <div style={{ opacity: 0.8, fontSize: 13, marginBottom: 10 }}>
+        {!currentName ? (
+          <>
+            Defina seu nome pela primeira vez (grátis). Depois você terá <b>apenas 1 troca</b>.
+          </>
+        ) : (
+          <>
+            Você pode trocar apenas <b>uma vez</b> depois.
+            <br />
+            Trocas restantes: <b>{remaining}</b>
+          </>
+        )}
+      </div>
+
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Ex: Guardião Harmônico"
+          disabled={!canChange}
+          style={{
+            flex: 1,
+            minWidth: 220,
+            padding: 12,
+            borderRadius: 12,
+            border: "1px solid rgba(255,255,255,0.12)",
+            background: "rgba(255,255,255,0.04)",
+            color: "white",
+            outline: "none",
+            opacity: canChange ? 1 : 0.55,
+          }}
+        />
+
+        <button
+          onClick={save}
+          disabled={saving || !canChange}
+          style={{
+            padding: "12px 14px",
+            borderRadius: 12,
+            border: "1px solid rgba(255,255,255,0.12)",
+            background: "rgba(255,255,255,0.10)",
+            color: "white",
+            cursor: saving || !canChange ? "not-allowed" : "pointer",
+            opacity: saving || !canChange ? 0.55 : 1,
+            fontWeight: 800,
+          }}
+          title={!canChange ? "Você já usou sua troca de Nick." : "Salvar Nick"}
+        >
+          {saving ? "Salvando..." : "Salvar Nick"}
+        </button>
+      </div>
+
+      {msg ? <div style={{ marginTop: 10, color: "#9ae6b4" }}>{msg}</div> : null}
+      {err ? <div style={{ marginTop: 10, color: "#feb2b2" }}>❌ {err}</div> : null}
+
+      {!canChange ? (
+        <div style={{ marginTop: 10, fontSize: 12, opacity: 0.8 }}>
+          🔒 Você atingiu o limite de mudanças. Se precisar corrigir um erro de digitação, o Guardião Mestre pode ajustar manualmente no banco.
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export default function PerfilPage() {
   const [loading, setLoading] = useState(true);
   const [me, setMe] = useState(null);
   const [catalog, setCatalog] = useState(null);
   const [err, setErr] = useState("");
-
-  // displayName edit
-  const [nameInput, setNameInput] = useState("");
-  const [savingName, setSavingName] = useState(false);
-  const [nameMsg, setNameMsg] = useState("");
-  const [nameErr, setNameErr] = useState("");
 
   useEffect(() => {
     let alive = true;
@@ -104,13 +220,9 @@ export default function PerfilPage() {
 
         setMe(meResp);
         setCatalog(catResp);
-
-        // preenche input com nome atual (se tiver)
-        const current = meResp?.user?.displayName || "";
-        setNameInput(current);
       } catch (e) {
         if (!alive) return;
-        setErr(e.message || "Erro");
+        setErr(e?.message || "Erro");
       } finally {
         if (!alive) return;
         setLoading(false);
@@ -125,47 +237,6 @@ export default function PerfilPage() {
 
   const progress = me?.progress || {};
   const user = me?.user || {};
-
-  const remaining = user?.displayNameRemaining ?? 2;
-  const canChangeName = remaining > 0;
-
-  async function saveDisplayName() {
-    setSavingName(true);
-    setNameMsg("");
-    setNameErr("");
-
-    try {
-      const resp = await apiFetch("/api/user/display-name", {
-        method: "PATCH",
-        auth: true,
-        body: { displayName: nameInput },
-      });
-
-      if (!resp?.ok) throw new Error(resp?.error || "Falha ao salvar nome");
-
-      // atualiza estado local do "me" pra refletir imediatamente
-      setMe((prev) => {
-        if (!prev) return prev;
-
-        const prevUser = prev.user || {};
-        return {
-          ...prev,
-          user: {
-            ...prevUser,
-            displayName: resp.displayName,
-            displayNameChanges: resp.displayNameChanges,
-            displayNameRemaining: resp.displayNameRemaining,
-          },
-        };
-      });
-
-      setNameMsg(resp?.message || "Nome atualizado!");
-    } catch (e) {
-      setNameErr(e?.message || "Erro ao salvar nome");
-    } finally {
-      setSavingName(false);
-    }
-  }
 
   const unlockedRunas = new Set(progress.runas || []);
   const unlockedReliquias = new Set(progress.reliquias || []);
@@ -214,73 +285,15 @@ export default function PerfilPage() {
 
         {!loading && !err ? (
           <>
-            {/* ======= BLOCO NICK ======= */}
-            <div
-              style={{
-                border: "1px solid rgba(255,255,255,0.12)",
-                borderRadius: 12,
-                padding: 14,
-                marginBottom: 18,
-                background: "rgba(255,255,255,0.03)",
+            {/* ======= BLOCO NICK (NickEditor) ======= */}
+            <NickEditor
+              user={user}
+              onUpdated={async () => {
+                // recarrega /me sem refazer catálogo
+                const meResp = await apiGet("/api/user/me");
+                if (meResp?.ok) setMe(meResp);
               }}
-            >
-              <div style={{ fontWeight: 900, marginBottom: 8 }}>📝 Nome do Guardião</div>
-              <div style={{ opacity: 0.8, fontSize: 13, marginBottom: 10 }}>
-                Você pode definir seu nome e trocar apenas <b>uma vez</b> depois.
-                <br />
-                Trocas restantes: <b>{remaining}</b>
-              </div>
-
-              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                <input
-                  value={nameInput}
-                  onChange={(e) => setNameInput(e.target.value)}
-                  placeholder="Ex: Guardião Harmônico"
-                  style={{
-                    flex: 1,
-                    minWidth: 220,
-                    padding: 12,
-                    borderRadius: 12,
-                    border: "1px solid rgba(255,255,255,0.12)",
-                    background: "rgba(255,255,255,0.04)",
-                    color: "white",
-                    outline: "none",
-                  }}
-                />
-
-                <button
-                  onClick={saveDisplayName}
-                  disabled={savingName || !canChangeName}
-                  style={{
-                    padding: "12px 14px",
-                    borderRadius: 12,
-                    border: "1px solid rgba(255,255,255,0.12)",
-                    background: "rgba(255,255,255,0.10)",
-                    color: "white",
-                    cursor: savingName || !canChangeName ? "not-allowed" : "pointer",
-                    opacity: savingName || !canChangeName ? 0.5 : 1,
-                    fontWeight: 800,
-                  }}
-                  title={
-                    !canChangeName
-                      ? "Você já usou suas mudanças de nome."
-                      : "Salvar nome"
-                  }
-                >
-                  {savingName ? "Salvando..." : "Salvar Nome"}
-                </button>
-              </div>
-
-              {nameMsg ? <div style={{ marginTop: 10, color: "#9ae6b4" }}>{nameMsg}</div> : null}
-              {nameErr ? <div style={{ marginTop: 10, color: "#feb2b2" }}>❌ {nameErr}</div> : null}
-
-              {!canChangeName ? (
-                <div style={{ marginTop: 10, fontSize: 12, opacity: 0.8 }}>
-                  🔒 Você atingiu o limite de mudanças. Se precisar corrigir um erro de digitação,
-                  o Guardião Mestre pode ajustar manualmente no banco.
-                </div>
-              ) : null}
-            </div>
+            />
 
             {/* ======= CARDS PROGRESSO ======= */}
             <div
@@ -303,12 +316,16 @@ export default function PerfilPage() {
 
               <div style={{ border: "1px solid rgba(255,255,255,0.12)", borderRadius: 12, padding: 14 }}>
                 <div style={{ opacity: 0.75, fontSize: 13 }}>Runas</div>
-                <div style={{ fontSize: 18, fontWeight: 800 }}>{gotRunas}/{totalRunas}</div>
+                <div style={{ fontSize: 18, fontWeight: 800 }}>
+                  {gotRunas}/{totalRunas}
+                </div>
               </div>
 
               <div style={{ border: "1px solid rgba(255,255,255,0.12)", borderRadius: 12, padding: 14 }}>
                 <div style={{ opacity: 0.75, fontSize: 13 }}>Relíquias</div>
-                <div style={{ fontSize: 18, fontWeight: 800 }}>{gotReliquias}/{totalReliquias}</div>
+                <div style={{ fontSize: 18, fontWeight: 800 }}>
+                  {gotReliquias}/{totalReliquias}
+                </div>
               </div>
             </div>
 

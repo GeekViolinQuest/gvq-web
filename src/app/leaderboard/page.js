@@ -22,11 +22,50 @@ function TabButton({ active, onClick, children }) {
   );
 }
 
+function TierBadge({ row }) {
+  if (!row?.tierLabel) return null;
+
+  const label = row.isFirstEstelar ? "👑 1º Estelar" : row.tierLabel;
+
+  return (
+    <span
+      style={{
+        marginLeft: 10,
+        fontSize: 12,
+        padding: "3px 10px",
+        borderRadius: 999,
+        border: "1px solid rgba(255,255,255,0.16)",
+        background: row.isFirstEstelar
+          ? "rgba(255,215,0,0.18)"
+          : "rgba(255,255,255,0.06)",
+        opacity: 0.95,
+        fontWeight: 800,
+      }}
+      title={
+        row.isFirstEstelar
+          ? "Primeiro Guardião a alcançar Tier 1 nesta Temporada."
+          : `Tier ${row.tierNumber} — ${row.tierLabel}`
+      }
+    >
+      {label}
+    </span>
+  );
+}
+
 function Table({ rows, mode }) {
-  const colLabel = mode === "level" ? "Nível" : mode === "season" ? "Cristais" : "Relíquias";
+  const colLabel =
+    mode === "level"
+      ? "Nível"
+      : mode === "season"
+      ? "Cristais"
+      : "Relíquias";
 
   const valueOf = (r) =>
-    mode === "level" ? r.level : mode === "season" ? r.cristais : r.reliquiasCount;
+    mode === "level"
+      ? r.level
+      : mode === "season"
+      ? r.cristais
+      : r.reliquiasCount;
 
   return (
     <div
@@ -65,21 +104,16 @@ function Table({ rows, mode }) {
             <div style={{ fontWeight: 900 }}>{r.rank}</div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-              <div style={{ fontWeight: 800 }}>
+              <div
+                style={{
+                  fontWeight: 800,
+                  display: "flex",
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                }}
+              >
                 {r.displayName || "Guardião"}
-                {mode === "season" && r.tier ? (
-                  <span style={{ opacity: 0.85 }}> — {r.tier}</span>
-                ) : null}
-                {mode === "season" && r.isFirstEstelar ? (
-                  <span style={{ marginLeft: 8 }}>👑</span>
-                ) : null}
-              </div>
-
-              {/* email removido do ranking público */}
-              <div style={{ fontSize: 12, opacity: 0.7 }}>
-                {mode === "season" && r.tier
-                  ? "Ranking por Cristais Sonoros"
-                  : " "}
+                {mode === "season" ? <TierBadge row={r} /> : null}
               </div>
             </div>
 
@@ -96,11 +130,10 @@ function Table({ rows, mode }) {
 }
 
 export default function LeaderboardPage() {
-  const [tab, setTab] = useState("season"); // season | level | reliquias
+  const [tab, setTab] = useState("season");
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
 
-  // cache por aba: evita refazer request ao alternar
   const [data, setData] = useState({
     season: null,
     level: null,
@@ -119,7 +152,8 @@ export default function LeaderboardPage() {
       setLoading(true);
 
       const resp = await apiGet(`/api/leaderboard/${tab}?limit=50`);
-      if (!resp?.ok) throw new Error(resp?.error || "Falha ao carregar ranking");
+      if (!resp?.ok)
+        throw new Error(resp?.error || "Falha ao carregar ranking");
 
       setData((prev) => ({ ...prev, [tab]: resp.rows || [] }));
     } catch (e) {
@@ -147,15 +181,23 @@ export default function LeaderboardPage() {
 
   return (
     <AuthGate>
-      <div style={{ maxWidth: 980, margin: "0 auto", padding: "32px 18px", color: "white" }}>
+      <div
+        style={{
+          maxWidth: 980,
+          margin: "0 auto",
+          padding: "32px 18px",
+          color: "white",
+        }}
+      >
         <h1 style={{ fontSize: 34, marginBottom: 6 }}>Ranking</h1>
         <div style={{ opacity: 0.8, marginBottom: 16 }}>
-          Season = ordem por Cristais Sonoros • Nível e Relíquias em rankings separados
+          Season = ordem por Cristais Sonoros + Tier • Nível e Relíquias
+          separados
         </div>
 
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
           <TabButton active={tab === "season"} onClick={() => setTab("season")}>
-            💎 Ranking da Season (Cristais)
+            💎 Ranking da Season
           </TabButton>
 
           <TabButton active={tab === "level"} onClick={() => setTab("level")}>
@@ -182,15 +224,21 @@ export default function LeaderboardPage() {
           </button>
         </div>
 
-        {loading ? <div style={{ opacity: 0.8 }}>Carregando...</div> : null}
+        {loading && <div style={{ opacity: 0.8 }}>Carregando...</div>}
 
-        {err ? (
-          <div style={{ border: "1px solid rgba(255,80,80,0.35)", padding: 12, borderRadius: 12 }}>
+        {err && (
+          <div
+            style={{
+              border: "1px solid rgba(255,80,80,0.35)",
+              padding: 12,
+              borderRadius: 12,
+            }}
+          >
             ❌ {err}
           </div>
-        ) : null}
+        )}
 
-        {!loading && !err ? <Table rows={rows} mode={tab} /> : null}
+        {!loading && !err && <Table rows={rows} mode={tab} />}
       </div>
     </AuthGate>
   );
