@@ -1,47 +1,19 @@
 "use client";
 
+import { useEffect, useState } from "react";
+
 export default function LoadingDots({ label = "Carregando" }) {
+  const [n, setN] = useState(0);
+
+  useEffect(() => {
+    const t = setInterval(() => setN((x) => (x + 1) % 4), 350);
+    return () => clearInterval(t);
+  }, []);
+
   return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-      <span style={{ opacity: 0.9 }}>{label}</span>
-      <span style={{ display: "inline-flex", gap: 4 }}>
-        <i style={dotStyle(0)} />
-        <i style={dotStyle(1)} />
-        <i style={dotStyle(2)} />
-      </span>
-
-      <style jsx>{`
-        @keyframes gvq-bounce {
-          0%,
-          80%,
-          100% {
-            transform: translateY(0);
-            opacity: 0.45;
-          }
-          40% {
-            transform: translateY(-4px);
-            opacity: 1;
-          }
-        }
-
-        @media (prefers-reduced-motion: reduce) {
-          i {
-            animation: none !important;
-            opacity: 0.75 !important;
-          }
-        }
-      `}</style>
-    </span>
+    <div style={{ opacity: 0.85, display: "flex", alignItems: "center", gap: 10 }}>
+      <span style={{ fontWeight: 800 }}>{label}</span>
+      <span style={{ letterSpacing: 2 }}>{Array(n).fill("•").join("")}</span>
+    </div>
   );
-}
-
-function dotStyle(i) {
-  return {
-    width: 6,
-    height: 6,
-    borderRadius: 999,
-    display: "inline-block",
-    background: "rgba(255,255,255,0.85)",
-    animation: `gvq-bounce 1.1s ${i * 0.12}s infinite`,
-  };
 }

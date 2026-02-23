@@ -1,175 +1,181 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
+import { apiPost, setToken } from "@/lib/api";
 import { useRouter, useSearchParams } from "next/navigation";
 import GVQShell from "@/components/GVQShell";
-import { apiRequest, getToken, setToken } from "@/lib/api";
-import { GVQButton, GVQInput, GVQAlert, Row } from "@/components/ui/GVQ";
+import LoadingDots from "@/components/LoadingDots";
+
+function Input(props) {
+  return (
+    <input
+      {...props}
+      style={{
+        width: "100%",
+        padding: 12,
+        borderRadius: 12,
+        border: "1px solid rgba(255,255,255,0.12)",
+        background: "rgba(255,255,255,0.04)",
+        color: "white",
+        outline: "none",
+        ...props.style,
+      }}
+    />
+  );
+}
+
+function Button({ children, onClick, disabled, variant = "solid", title }) {
+  return (
+    <button
+      title={title}
+      onClick={onClick}
+      disabled={disabled}
+      style={{
+        padding: "12px 14px",
+        borderRadius: 12,
+        border: "1px solid rgba(255,255,255,0.12)",
+        background: variant === "solid" ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.06)",
+        color: "white",
+        cursor: disabled ? "not-allowed" : "pointer",
+        opacity: disabled ? 0.55 : 1,
+        fontWeight: 900,
+      }}
+    >
+      {children}
+    </button>
+  );
+}
 
 export default function OtpClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const initialEmail = useMemo(() => searchParams.get("email") || "", [searchParams]);
-
-  const [email, setEmail] = useState(initialEmail);
+  const [email, setEmail] = useState(() => searchParams.get("email") || "");
   const [code, setCode] = useState("");
-
   const [msg, setMsg] = useState("");
-  const [msgType, setMsgType] = useState("info"); // info | error | success
-
   const [loading, setLoading] = useState(false);
-  const [sending, setSending] = useState(false);
 
-  useEffect(() => {
-    const token = getToken();
-    if (token) router.replace("/dashboard");
-  }, [router]);
+  // cooldown UI (não substitui o backend, só evita spam no botão)
+  const [cooldown, setCooldown] = useState(0);
+
+  async function resend() {
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail) return setMsg("Digite seu e-mail.");
+
+    if (cooldown > 0) return;
+
+    setLoading(true);
+    setMsg("");
+
+    const r = await apiPost("/api/auth/request-otp", { email: cleanEmail }, { auth: false });
+
+    setLoading(false);
+
+    if (!r.ok) return setMsg(r.error || "Erro ao reenviar.");
+
+    setMsg("✅ Código reenviado. Verifique seu e-mail.");
+
+    // inicia cooldown de 30s no UI (backend ainda manda o cooldown real)
+    setCooldown(30);
+    const t = setInterval(() => {
+      setCooldown((c) => {
+        if (c <= 1) {
+          clearInterval(t);
+          return 0;
+        }
+        return c - 1;
+      });
+    }, 1000);
+  }
 
   async function verifyOtp(e) {
     e.preventDefault();
-    setMsg("");
-    setMsgType("info");
 
     const cleanEmail = email.trim().toLowerCase();
     const cleanCode = code.trim();
 
-    if (!cleanEmail) {
-      setMsgType("error");
-      return setMsg("Digite seu e-mail.");
-    }
-    if (cleanCode.length !== 6) {
-      setMsgType("error");
-      return setMsg("Digite o código de 6 dígitos.");
-    }
+    if (!cleanEmail) return setMsg("Digite seu e-mail.");
+    if (cleanCode.length !== 6) return setMsg("Digite o código de 6 dígitos.");
 
+    setMsg("");
     setLoading(true);
 
-    const r = await apiRequest("/api/auth/verify-otp", {
-      method: "POST",
-      auth: false,
-      body: { email: cleanEmail, code: cleanCode },
-    });
+    const r = await apiPost(
+      "/api/auth/verify-otp",
+      { email: cleanEmail, code: cleanCode },
+      { auth: false }
+    );
 
     setLoading(false);
 
-    if (!r.ok) {
-      setMsgType("error");
-      return setMsg(r.data?.error || "Erro ao verificar OTP");
-    }
+    if (!r.ok) return setMsg(r.error || "Erro ao verificar OTP");
 
-    if (!r.data?.token) {
-      setMsgType("error");
-      return setMsg("Resposta inválida do servidor (sem token).");
-    }
+    const token = r.data?.token;
+    if (!token) return setMsg("Token não retornou. Tente novamente.");
 
-    setToken(r.data.token);
-    setMsgType("success");
-    setMsg("✅ Portal aberto! Entrando no Dashboard...");
-
+    setToken(token);
     router.replace("/dashboard");
   }
 
-  async function resendOtp() {
-    setMsg("");
-    setMsgType("info");
-
-    const cleanEmail = email.trim().toLowerCase();
-    if (!cleanEmail) {
-      setMsgType("error");
-      return setMsg("Digite seu e-mail para reenviar o código.");
-    }
-
-    setSending(true);
-
-    const r = await apiRequest("/api/auth/request-otp", {
-      method: "POST",
-      auth: false,
-      body: { email: cleanEmail },
-    });
-
-    setSending(false);
-
-    if (!r.ok) {
-      setMsgType("error");
-      return setMsg(r.data?.error || `Não foi possível reenviar (HTTP ${r.status})`);
-    }
-
-    setMsgType("success");
-    setMsg("✅ Código reenviado. Verifique seu e-mail (e o spam).");
-  }
-
-  function changeEmail() {
-    router.replace("/login");
-  }
-
-  const accent = msgType === "error" ? "error" : msgType === "success" ? "success" : "default";
-
   return (
-    <GVQShell
-      title="Ritual do Código"
-      subtitle="Insira o Código do Guardião para abrir o Portal"
-      footer={
-        <>
-          ⏳ Reenviar respeita cooldown (anti-spam).
-          <br />
-          🧙‍♂️ Dica: copie e cole o código do e-mail.
-        </>
-      }
-      accent={accent}
-    >
-      <form onSubmit={verifyOtp}>
-        <div style={{ fontSize: 13, opacity: 0.75 }}>E-mail</div>
+    <GVQShell title="GVQ — Verificar Código" subtitle="Selando seu acesso ao Reino de Sonoralis">
+      <main style={{ maxWidth: 520 }}>
+        <form onSubmit={verifyOtp} style={{ display: "grid", gap: 10 }}>
+          <div>
+            <div style={{ opacity: 0.8, fontSize: 13, marginBottom: 6 }}>E-mail</div>
+            <Input
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="seu@email.com"
+              disabled={loading}
+            />
+          </div>
 
-        <GVQInput
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="seu@email.com"
-          disabled={loading || sending}
-          autoComplete="email"
-        />
+          <div>
+            <div style={{ opacity: 0.8, fontSize: 13, marginBottom: 6 }}>Código (6 dígitos)</div>
+            <Input
+              value={code}
+              onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+              placeholder="000000"
+              disabled={loading}
+              style={{ width: 220, letterSpacing: 4 }}
+            />
+          </div>
 
-        <div style={{ marginTop: 14, fontSize: 13, opacity: 0.75 }}>Código (6 dígitos)</div>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 6 }}>
+            <Button disabled={loading || code.trim().length !== 6}>
+              {loading ? <LoadingDots label="Validando" /> : "Entrar"}
+            </Button>
 
-        <GVQInput
-          value={code}
-          onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-          placeholder="000000"
-          disabled={loading}
-          inputMode="numeric"
-          style={{ width: 200, letterSpacing: 6, fontWeight: 900 }}
-        />
+            <Button
+              variant="ghost"
+              onClick={resend}
+              disabled={loading || cooldown > 0}
+              title="Reenviar o código (respeita cooldown do backend)"
+            >
+              {cooldown > 0 ? `Reenviar (${cooldown}s)` : "Reenviar código"}
+            </Button>
 
-        <GVQButton
-          full
-          type="submit"
-          variant="primary"
-          loading={loading}
-          loadingLabel="Validando"
-          disabled={code.trim().length !== 6}
-          style={{ marginTop: 14 }}
-        >
-          Entrar
-        </GVQButton>
+            <Button variant="ghost" onClick={() => router.replace("/login")} disabled={loading}>
+              Voltar
+            </Button>
+          </div>
+        </form>
 
-        <Row style={{ marginTop: 12 }}>
-          <GVQButton
-            variant="ghost"
-            onClick={resendOtp}
-            loading={sending}
-            loadingLabel="Reenviando"
-            disabled={loading}
+        {msg ? (
+          <div
+            style={{
+              marginTop: 12,
+              border: "1px solid rgba(255,255,255,0.12)",
+              borderRadius: 12,
+              padding: 10,
+              background: "rgba(255,255,255,0.03)",
+            }}
           >
-            Reenviar código
-          </GVQButton>
-
-          <GVQButton variant="ghost" onClick={changeEmail} disabled={loading || sending}>
-            Trocar e-mail
-          </GVQButton>
-        </Row>
-      </form>
-
-      {msg ? <GVQAlert type={msgType}>{msg}</GVQAlert> : null}
+            {msg}
+          </div>
+        ) : null}
+      </main>
     </GVQShell>
   );
 }

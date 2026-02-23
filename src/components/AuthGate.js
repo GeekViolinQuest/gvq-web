@@ -2,9 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { apiRequest, getToken, clearToken } from "@/lib/api";
-
-const VALIDATE_ON_SERVER = false; // ⭐ opcional: coloque true se tiver /api/auth/me
+import { getToken, clearToken, apiGet } from "@/lib/api";
+import LoadingDots from "@/components/LoadingDots";
 
 export default function AuthGate({ children }) {
   const router = useRouter();
@@ -13,7 +12,7 @@ export default function AuthGate({ children }) {
   useEffect(() => {
     let alive = true;
 
-    async function run() {
+    (async () => {
       const token = getToken();
 
       if (!token) {
@@ -22,29 +21,33 @@ export default function AuthGate({ children }) {
         return;
       }
 
-      if (VALIDATE_ON_SERVER) {
-        // ajuste o endpoint se o seu for outro
-        const r = await apiRequest("/api/auth/me", { method: "GET", auth: true });
+      // valida token com /me (evita loops de páginas sem dados)
+      const r = await apiGet("/api/user/me", { auth: true });
 
-        if (!alive) return;
+      if (!alive) return;
 
-        if (!r.ok) {
-          clearToken();
-          router.replace("/login");
-          return;
-        }
+      if (!r.ok) {
+        // 401/403: token inválido/expirado
+        clearToken();
+        router.replace("/login");
+        return;
       }
 
       setReady(true);
-    }
-
-    run();
+    })();
 
     return () => {
       alive = false;
     };
   }, [router]);
 
-  if (!ready) return null;
+  if (!ready) {
+    return (
+      <div style={{ padding: 32, color: "white" }}>
+        <LoadingDots label="Abrindo o Portal" />
+      </div>
+    );
+  }
+
   return children;
 }

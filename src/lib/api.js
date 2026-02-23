@@ -16,24 +16,23 @@ export function clearToken() {
 }
 
 function getBase() {
-  // remove barra final pra evitar //api/...
   return (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
 }
 
 function joinUrl(base, path) {
-  if (!base) return path; // fallback (útil em dev)
+  if (!base) return path;
   if (path.startsWith("http")) return path;
   if (!path.startsWith("/")) path = `/${path}`;
   return `${base}${path}`;
 }
 
 /**
- * Padrão único de request:
- * - NÃO dá throw por padrão
- * - retorna { ok, status, data }
- * - se auth=true, injeta Authorization Bearer
+ * Padrão A (site inteiro):
+ * - NUNCA lança throw
+ * - SEMPRE retorna:
+ *   { ok: boolean, status: number, data: any, error?: string }
  */
-export async function apiRequest(
+export async function apiFetch(
   path,
   { method = "GET", body, auth = false, headers: extraHeaders } = {}
 ) {
@@ -47,43 +46,41 @@ export async function apiRequest(
 
   const url = joinUrl(getBase(), path);
 
-  let res;
   try {
-    res = await fetch(url, {
+    const res = await fetch(url, {
       method,
       headers,
       cache: "no-store",
       body: body ? JSON.stringify(body) : undefined,
     });
+
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      return {
+        ok: false,
+        status: res.status,
+        data,
+        error: data?.error || `Erro HTTP ${res.status}`,
+      };
+    }
+
+    return { ok: true, status: res.status, data };
   } catch (e) {
-    // erro de rede (offline, DNS, CORS hard fail etc.)
-    return { ok: false, status: 0, data: { error: "network_error" } };
+    return {
+      ok: false,
+      status: 0,
+      data: null,
+      error: e?.message || "Falha de rede",
+    };
   }
-
-  const data = await res.json().catch(() => ({}));
-  return { ok: res.ok, status: res.status, data };
 }
 
-/**
- * Compat: apiFetch como você vinha usando nos componentes
- * Agora retorna { ok, status, data } (SEM throw)
- */
-export function apiFetch(path, opts = {}) {
-  return apiRequest(path, { auth: true, ...opts });
+// helpers práticos
+export function apiGet(path, { auth = true } = {}) {
+  return apiFetch(path, { method: "GET", auth });
 }
 
-/**
- * Compat: apiGet retorna { ok, status, data } (SEM throw)
- */
-export function apiGet(path, opts = {}) {
-  return apiRequest(path, { method: "GET", auth: true, ...opts });
-}
-
-/**
- * Opcional: helper para limpar token e voltar pro login
- * (uso em telas/client)
- */
-export function logoutAndRedirect(router) {
-  clearToken();
-  if (router) router.replace("/login");
+export function apiPost(path, body, { auth = true } = {}) {
+  return apiFetch(path, { method: "POST", auth, body });
 }

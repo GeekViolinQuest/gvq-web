@@ -1,7 +1,9 @@
 "use client";
 
 import AuthGate from "@/components/AuthGate";
-import { apiGet, apiFetch } from "@/lib/api";
+import GVQShell from "@/components/GVQShell";
+import LoadingDots from "@/components/LoadingDots";
+import { apiGet, apiPost } from "@/lib/api";
 import { useEffect, useMemo, useState } from "react";
 
 function ItemCard({ title, subtitle, img, locked, tag }) {
@@ -15,32 +17,31 @@ function ItemCard({ title, subtitle, img, locked, tag }) {
         gap: 12,
         alignItems: "center",
         opacity: locked ? 0.35 : 1,
+        background: "rgba(255,255,255,0.03)",
       }}
     >
-      {img ? (
-        <div
-          style={{
-            width: 64,
-            height: 64,
-            borderRadius: 10,
-            overflow: "hidden",
-            border: "1px solid rgba(255,255,255,0.12)",
-            background: "rgba(255,255,255,0.04)",
-            flex: "0 0 auto",
-          }}
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={img}
-            alt={title}
-            style={{ width: "100%", height: "100%", objectFit: "cover" }}
-          />
-        </div>
-      ) : null}
+      <div
+        style={{
+          width: 64,
+          height: 64,
+          borderRadius: 10,
+          overflow: "hidden",
+          border: "1px solid rgba(255,255,255,0.12)",
+          background: "rgba(255,255,255,0.04)",
+          flex: "0 0 auto",
+        }}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={img || "/locked.png"}
+          alt={title}
+          style={{ width: "100%", height: "100%", objectFit: "cover" }}
+        />
+      </div>
 
       <div style={{ flex: 1 }}>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <div style={{ fontWeight: 700 }}>{title}</div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <div style={{ fontWeight: 900 }}>{title}</div>
           {tag ? (
             <span
               style={{
@@ -56,19 +57,52 @@ function ItemCard({ title, subtitle, img, locked, tag }) {
           ) : null}
         </div>
 
-        {subtitle ? (
-          <div style={{ opacity: 0.8, marginTop: 4, fontSize: 13 }}>
-            {subtitle}
-          </div>
-        ) : null}
+        {subtitle ? <div style={{ opacity: 0.8, marginTop: 4, fontSize: 13 }}>{subtitle}</div> : null}
 
-        {locked ? (
-          <div style={{ marginTop: 6, fontSize: 12, opacity: 0.85 }}>
-            🔒 Ainda não conquistada
-          </div>
-        ) : null}
+        {locked ? <div style={{ marginTop: 6, fontSize: 12, opacity: 0.85 }}>🔒 Ainda não conquistada</div> : null}
       </div>
     </div>
+  );
+}
+
+function Button({ onClick, children, disabled, variant = "solid", title }) {
+  return (
+    <button
+      title={title}
+      onClick={onClick}
+      disabled={disabled}
+      style={{
+        padding: "10px 12px",
+        borderRadius: 12,
+        border: "1px solid rgba(255,255,255,0.12)",
+        background: variant === "solid" ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.06)",
+        color: "white",
+        cursor: disabled ? "not-allowed" : "pointer",
+        opacity: disabled ? 0.55 : 1,
+        fontWeight: 900,
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function Input(props) {
+  return (
+    <input
+      {...props}
+      style={{
+        flex: 1,
+        minWidth: 220,
+        padding: 12,
+        borderRadius: 12,
+        border: "1px solid rgba(255,255,255,0.12)",
+        background: "rgba(255,255,255,0.04)",
+        color: "white",
+        outline: "none",
+        ...props.style,
+      }}
+    />
   );
 }
 
@@ -81,8 +115,6 @@ function ItemCard({ title, subtitle, img, locked, tag }) {
 function NickEditor({ user, onUpdated }) {
   const currentName = user?.displayName || "";
   const remaining = user?.displayNameRemaining ?? 1;
-
-  // regra: se não tem nome ainda, pode definir “de graça”
   const canChange = !currentName || remaining > 0;
 
   const [name, setName] = useState(currentName);
@@ -90,7 +122,6 @@ function NickEditor({ user, onUpdated }) {
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
 
-  // quando user muda (reload do /me), sincroniza input
   useEffect(() => {
     setName(currentName || "");
   }, [currentName]);
@@ -100,22 +131,14 @@ function NickEditor({ user, onUpdated }) {
     setMsg("");
     setErr("");
 
-    try {
-      const res = await apiFetch("/api/user/display-name", {
-        method: "POST",
-        auth: true,
-        body: { displayName: name },
-      });
+    const r = await apiPost("/api/user/display-name", { displayName: name }, { auth: true });
 
-      if (!res?.ok) throw new Error(res?.error || "Falha ao salvar");
+    setSaving(false);
 
-      setMsg(res?.message || "✅ Nick atualizado!");
-      await onUpdated?.();
-    } catch (e) {
-      setErr(e?.message || "Erro");
-    } finally {
-      setSaving(false);
-    }
+    if (!r.ok) return setErr(r.error || "Falha ao salvar");
+
+    setMsg(r.data?.message || "✅ Nick atualizado!");
+    await onUpdated?.();
   }
 
   return (
@@ -128,7 +151,7 @@ function NickEditor({ user, onUpdated }) {
         background: "rgba(255,255,255,0.03)",
       }}
     >
-      <div style={{ fontWeight: 900, marginBottom: 8 }}>📝 Nome do Guardião</div>
+      <div style={{ fontWeight: 1000, marginBottom: 8 }}>📝 Nome do Guardião</div>
 
       <div style={{ opacity: 0.8, fontSize: 13, marginBottom: 10 }}>
         {!currentName ? (
@@ -137,59 +160,174 @@ function NickEditor({ user, onUpdated }) {
           </>
         ) : (
           <>
-            Você pode trocar apenas <b>uma vez</b> depois.
-            <br />
-            Trocas restantes: <b>{remaining}</b>
+            Você pode trocar apenas <b>uma vez</b> depois. Trocas restantes: <b>{remaining}</b>
           </>
         )}
       </div>
 
       <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-        <input
+        <Input
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="Ex: Guardião Harmônico"
-          disabled={!canChange}
-          style={{
-            flex: 1,
-            minWidth: 220,
-            padding: 12,
-            borderRadius: 12,
-            border: "1px solid rgba(255,255,255,0.12)",
-            background: "rgba(255,255,255,0.04)",
-            color: "white",
-            outline: "none",
-            opacity: canChange ? 1 : 0.55,
-          }}
+          disabled={!canChange || saving}
+          style={{ opacity: canChange ? 1 : 0.55 }}
         />
 
-        <button
+        <Button
           onClick={save}
           disabled={saving || !canChange}
-          style={{
-            padding: "12px 14px",
-            borderRadius: 12,
-            border: "1px solid rgba(255,255,255,0.12)",
-            background: "rgba(255,255,255,0.10)",
-            color: "white",
-            cursor: saving || !canChange ? "not-allowed" : "pointer",
-            opacity: saving || !canChange ? 0.55 : 1,
-            fontWeight: 800,
-          }}
           title={!canChange ? "Você já usou sua troca de Nick." : "Salvar Nick"}
         >
           {saving ? "Salvando..." : "Salvar Nick"}
-        </button>
+        </Button>
       </div>
 
-      {msg ? <div style={{ marginTop: 10, color: "#9ae6b4" }}>{msg}</div> : null}
+      {msg ? <div style={{ marginTop: 10, opacity: 0.95 }}>✅ {msg}</div> : null}
       {err ? <div style={{ marginTop: 10, color: "#feb2b2" }}>❌ {err}</div> : null}
 
       {!canChange ? (
         <div style={{ marginTop: 10, fontSize: 12, opacity: 0.8 }}>
-          🔒 Você atingiu o limite de mudanças. Se precisar corrigir um erro de digitação, o Guardião Mestre pode ajustar manualmente no banco.
+          🔒 Você atingiu o limite de mudanças. Se precisar corrigir um erro, o Guardião Mestre pode ajustar manualmente no banco.
         </div>
       ) : null}
+    </div>
+  );
+}
+
+/**
+ * AvatarEditor
+ * - salva em Aluno.avatarUrl via POST /api/user/avatar
+ * - aceita URL https ou arquivo pequeno (dataURL)
+ */
+function AvatarEditor({ user, onUpdated }) {
+  const current = user?.avatarUrl || "";
+  const [preview, setPreview] = useState(current);
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [err, setErr] = useState("");
+  const [url, setUrl] = useState("");
+
+  useEffect(() => {
+    setPreview(current || "");
+  }, [current]);
+
+  async function saveAvatar(avatarUrl) {
+    setSaving(true);
+    setMsg("");
+    setErr("");
+
+    const r = await apiPost("/api/user/avatar", { avatarUrl }, { auth: true });
+
+    setSaving(false);
+
+    if (!r.ok) return setErr(r.error || "Falha ao salvar avatar");
+
+    setMsg("Avatar atualizado!");
+    await onUpdated?.();
+  }
+
+  async function pickFile(file) {
+    if (!file) return;
+
+    // limite recomendado (tanto pra UI quanto pro backend)
+    const MAX = 120 * 1024; // 120 KB
+    if (file.size > MAX) {
+      setErr("Arquivo muito grande. Use no máximo 120KB (ou envie uma URL).");
+      return;
+    }
+
+    setErr("");
+    setMsg("");
+
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const dataUrl = String(reader.result || "");
+      setPreview(dataUrl);
+      await saveAvatar(dataUrl);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  return (
+    <div
+      style={{
+        border: "1px solid rgba(255,255,255,0.12)",
+        borderRadius: 12,
+        padding: 14,
+        marginBottom: 18,
+        background: "rgba(255,255,255,0.03)",
+      }}
+    >
+      <div style={{ fontWeight: 1000, marginBottom: 8 }}>🧑‍🎨 Avatar</div>
+      <div style={{ opacity: 0.8, fontSize: 13, marginBottom: 10 }}>
+        Você pode usar uma URL (https) ou enviar um arquivo pequeno (até 120KB).  
+        O avatar é salvo no seu progresso (Aluno.avatarUrl).
+      </div>
+
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
+        <div
+          style={{
+            width: 72,
+            height: 72,
+            borderRadius: 16,
+            overflow: "hidden",
+            border: "1px solid rgba(255,255,255,0.12)",
+            background: "rgba(255,255,255,0.04)",
+          }}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={preview || "/locked.png"}
+            alt="Avatar"
+            style={{ width: "100%", height: "100%", objectFit: "cover" }}
+          />
+        </div>
+
+        <div style={{ flex: 1, minWidth: 260, display: "grid", gap: 8 }}>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <Input
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="https://... (opcional)"
+              disabled={saving}
+            />
+            <Button onClick={() => saveAvatar(url)} disabled={saving || !url.trim()}>
+              Salvar URL
+            </Button>
+          </div>
+
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+            <label
+              style={{
+                padding: "10px 12px",
+                borderRadius: 12,
+                border: "1px solid rgba(255,255,255,0.12)",
+                background: "rgba(255,255,255,0.06)",
+                cursor: saving ? "not-allowed" : "pointer",
+                opacity: saving ? 0.55 : 1,
+                fontWeight: 900,
+              }}
+            >
+              Enviar arquivo
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/gif"
+                style={{ display: "none" }}
+                disabled={saving}
+                onChange={(e) => pickFile(e.target.files?.[0])}
+              />
+            </label>
+
+            <Button variant="ghost" onClick={() => saveAvatar("")} disabled={saving}>
+              Remover
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {msg ? <div style={{ marginTop: 10, opacity: 0.95 }}>✅ {msg}</div> : null}
+      {err ? <div style={{ marginTop: 10, color: "#feb2b2" }}>❌ {err}</div> : null}
     </div>
   );
 }
@@ -200,36 +338,42 @@ export default function PerfilPage() {
   const [catalog, setCatalog] = useState(null);
   const [err, setErr] = useState("");
 
+  async function reloadMeOnly() {
+    const r = await apiGet("/api/user/me", { auth: true });
+    if (r.ok) setMe(r.data);
+  }
+
   useEffect(() => {
     let alive = true;
 
-    async function load() {
-      try {
-        setLoading(true);
-        setErr("");
+    (async () => {
+      setLoading(true);
+      setErr("");
 
-        const [meResp, catResp] = await Promise.all([
-          apiGet("/api/user/me"),
-          apiGet("/api/meta/catalog"),
-        ]);
+      const [meR, catR] = await Promise.all([
+        apiGet("/api/user/me", { auth: true }),
+        apiGet("/api/meta/catalog", { auth: true }),
+      ]);
 
-        if (!alive) return;
+      if (!alive) return;
 
-        if (!meResp?.ok) throw new Error(meResp?.error || "Falha ao carregar /me");
-        if (!catResp?.ok) throw new Error(catResp?.error || "Falha ao carregar catálogo");
-
-        setMe(meResp);
-        setCatalog(catResp);
-      } catch (e) {
-        if (!alive) return;
-        setErr(e?.message || "Erro");
-      } finally {
-        if (!alive) return;
+      if (!meR.ok) {
+        setErr(meR.error || "Falha ao carregar /me");
         setLoading(false);
+        return;
       }
-    }
 
-    load();
+      if (!catR.ok) {
+        setErr(catR.error || "Falha ao carregar catálogo");
+        setLoading(false);
+        return;
+      }
+
+      setMe(meR.data);
+      setCatalog(catR.data);
+      setLoading(false);
+    })();
+
     return () => {
       alive = false;
     };
@@ -270,13 +414,12 @@ export default function PerfilPage() {
 
   return (
     <AuthGate>
-      <div style={{ maxWidth: 980, margin: "0 auto", padding: "32px 18px", color: "white" }}>
-        <h1 style={{ fontSize: 34, marginBottom: 6 }}>Perfil</h1>
-        <div style={{ opacity: 0.8, marginBottom: 16 }}>
-          {user.displayName ? user.displayName : "Guardião"} · {user.email || ""}
-        </div>
+      <GVQShell
+        title="Perfil"
+        subtitle={`${user.displayName ? user.displayName : "Guardião"} · ${user.email || ""}`}
+      >
+        {loading ? <LoadingDots label="Ajustando as runas do perfil" /> : null}
 
-        {loading ? <div style={{ opacity: 0.8 }}>Carregando...</div> : null}
         {err ? (
           <div style={{ border: "1px solid rgba(255,80,80,0.35)", padding: 12, borderRadius: 12 }}>
             ❌ {err}
@@ -285,15 +428,8 @@ export default function PerfilPage() {
 
         {!loading && !err ? (
           <>
-            {/* ======= BLOCO NICK (NickEditor) ======= */}
-            <NickEditor
-              user={user}
-              onUpdated={async () => {
-                // recarrega /me sem refazer catálogo
-                const meResp = await apiGet("/api/user/me");
-                if (meResp?.ok) setMe(meResp);
-              }}
-            />
+            <AvatarEditor user={user} onUpdated={reloadMeOnly} />
+            <NickEditor user={user} onUpdated={reloadMeOnly} />
 
             {/* ======= CARDS PROGRESSO ======= */}
             <div
@@ -306,24 +442,24 @@ export default function PerfilPage() {
             >
               <div style={{ border: "1px solid rgba(255,255,255,0.12)", borderRadius: 12, padding: 14 }}>
                 <div style={{ opacity: 0.75, fontSize: 13 }}>Nível</div>
-                <div style={{ fontSize: 26, fontWeight: 800 }}>{progress.level ?? 0}</div>
+                <div style={{ fontSize: 26, fontWeight: 1000 }}>{progress.level ?? 0}</div>
               </div>
 
               <div style={{ border: "1px solid rgba(255,255,255,0.12)", borderRadius: 12, padding: 14 }}>
                 <div style={{ opacity: 0.75, fontSize: 13 }}>Cristais Sonoros</div>
-                <div style={{ fontSize: 26, fontWeight: 800 }}>{progress.cristais ?? 0}</div>
+                <div style={{ fontSize: 26, fontWeight: 1000 }}>{progress.cristais ?? 0}</div>
               </div>
 
               <div style={{ border: "1px solid rgba(255,255,255,0.12)", borderRadius: 12, padding: 14 }}>
                 <div style={{ opacity: 0.75, fontSize: 13 }}>Runas</div>
-                <div style={{ fontSize: 18, fontWeight: 800 }}>
+                <div style={{ fontSize: 18, fontWeight: 1000 }}>
                   {gotRunas}/{totalRunas}
                 </div>
               </div>
 
               <div style={{ border: "1px solid rgba(255,255,255,0.12)", borderRadius: 12, padding: 14 }}>
                 <div style={{ opacity: 0.75, fontSize: 13 }}>Relíquias</div>
-                <div style={{ fontSize: 18, fontWeight: 800 }}>
+                <div style={{ fontSize: 18, fontWeight: 1000 }}>
                   {gotReliquias}/{totalReliquias}
                 </div>
               </div>
@@ -359,7 +495,7 @@ export default function PerfilPage() {
             </div>
           </>
         ) : null}
-      </div>
+      </GVQShell>
     </AuthGate>
   );
 }

@@ -1,6 +1,8 @@
 "use client";
 
 import AuthGate from "@/components/AuthGate";
+import GVQShell from "@/components/GVQShell";
+import LoadingDots from "@/components/LoadingDots";
 import { apiGet } from "@/lib/api";
 import { useEffect, useMemo, useState } from "react";
 
@@ -15,6 +17,7 @@ function TabButton({ active, onClick, children }) {
         background: active ? "rgba(255,255,255,0.14)" : "rgba(255,255,255,0.06)",
         color: "white",
         cursor: "pointer",
+        fontWeight: 900,
       }}
     >
       {children}
@@ -24,7 +27,6 @@ function TabButton({ active, onClick, children }) {
 
 function TierBadge({ row }) {
   if (!row?.tierLabel) return null;
-
   const label = row.isFirstEstelar ? "👑 1º Estelar" : row.tierLabel;
 
   return (
@@ -35,11 +37,9 @@ function TierBadge({ row }) {
         padding: "3px 10px",
         borderRadius: 999,
         border: "1px solid rgba(255,255,255,0.16)",
-        background: row.isFirstEstelar
-          ? "rgba(255,215,0,0.18)"
-          : "rgba(255,255,255,0.06)",
+        background: row.isFirstEstelar ? "rgba(255,215,0,0.18)" : "rgba(255,255,255,0.06)",
         opacity: 0.95,
-        fontWeight: 800,
+        fontWeight: 900,
       }}
       title={
         row.isFirstEstelar
@@ -53,28 +53,13 @@ function TierBadge({ row }) {
 }
 
 function Table({ rows, mode }) {
-  const colLabel =
-    mode === "level"
-      ? "Nível"
-      : mode === "season"
-      ? "Cristais"
-      : "Relíquias";
+  const colLabel = mode === "level" ? "Nível" : mode === "season" ? "Cristais" : "Relíquias";
 
   const valueOf = (r) =>
-    mode === "level"
-      ? r.level
-      : mode === "season"
-      ? r.cristais
-      : r.reliquiasCount;
+    mode === "level" ? r.level : mode === "season" ? r.cristais : r.reliquiasCount;
 
   return (
-    <div
-      style={{
-        border: "1px solid rgba(255,255,255,0.12)",
-        borderRadius: 14,
-        overflow: "hidden",
-      }}
-    >
+    <div style={{ border: "1px solid rgba(255,255,255,0.12)", borderRadius: 14, overflow: "hidden" }}>
       <div
         style={{
           display: "grid",
@@ -82,6 +67,7 @@ function Table({ rows, mode }) {
           padding: 12,
           opacity: 0.85,
           background: "rgba(255,255,255,0.04)",
+          fontWeight: 900,
         }}
       >
         <div>#</div>
@@ -101,23 +87,19 @@ function Table({ rows, mode }) {
               alignItems: "center",
             }}
           >
-            <div style={{ fontWeight: 900 }}>{r.rank}</div>
+            <div style={{ fontWeight: 1000 }}>{r.rank}</div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-              <div
-                style={{
-                  fontWeight: 800,
-                  display: "flex",
-                  alignItems: "center",
-                  flexWrap: "wrap",
-                }}
-              >
+              <div style={{ fontWeight: 900, display: "flex", alignItems: "center", flexWrap: "wrap" }}>
                 {r.displayName || "Guardião"}
                 {mode === "season" ? <TierBadge row={r} /> : null}
               </div>
+              <div style={{ opacity: 0.7, fontSize: 12 }}>
+                {mode === "season" ? `Nível ${r.level} • Relíquias ${r.reliquiasCount}` : `Cristais ${r.cristais}`}
+              </div>
             </div>
 
-            <div style={{ textAlign: "right", fontWeight: 900, fontSize: 16 }}>
+            <div style={{ textAlign: "right", fontWeight: 1000, fontSize: 16 }}>
               {valueOf(r)}
             </div>
           </div>
@@ -134,46 +116,32 @@ export default function LeaderboardPage() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
 
-  const [data, setData] = useState({
-    season: null,
-    level: null,
-    reliquias: null,
-  });
+  const [data, setData] = useState({ season: null, level: null, reliquias: null });
 
   async function loadCurrent(force = false) {
-    try {
-      setErr("");
+    setErr("");
 
-      if (!force && data[tab]) {
-        setLoading(false);
-        return;
-      }
-
-      setLoading(true);
-
-      const resp = await apiGet(`/api/leaderboard/${tab}?limit=50`);
-      if (!resp?.ok)
-        throw new Error(resp?.error || "Falha ao carregar ranking");
-
-      setData((prev) => ({ ...prev, [tab]: resp.rows || [] }));
-    } catch (e) {
-      setErr(e?.message || "Erro");
-    } finally {
+    if (!force && data[tab]) {
       setLoading(false);
+      return;
     }
+
+    setLoading(true);
+
+    const r = await apiGet(`/api/leaderboard/${tab}?limit=50&page=1`, { auth: true });
+
+    if (!r.ok) {
+      setErr(r.error || "Falha ao carregar ranking");
+      setLoading(false);
+      return;
+    }
+
+    setData((prev) => ({ ...prev, [tab]: r.data?.rows || [] }));
+    setLoading(false);
   }
 
   useEffect(() => {
-    let alive = true;
-
-    (async () => {
-      if (!alive) return;
-      await loadCurrent(false);
-    })();
-
-    return () => {
-      alive = false;
-    };
+    loadCurrent(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
 
@@ -181,20 +149,26 @@ export default function LeaderboardPage() {
 
   return (
     <AuthGate>
-      <div
-        style={{
-          maxWidth: 980,
-          margin: "0 auto",
-          padding: "32px 18px",
-          color: "white",
-        }}
+      <GVQShell
+        title="Ranking"
+        subtitle="Season = Cristais + Tier • Nível e Relíquias separados"
+        right={
+          <button
+            onClick={() => loadCurrent(true)}
+            style={{
+              padding: "10px 12px",
+              borderRadius: 12,
+              border: "1px solid rgba(255,255,255,0.12)",
+              background: "rgba(255,255,255,0.06)",
+              color: "white",
+              cursor: "pointer",
+              fontWeight: 900,
+            }}
+          >
+            🔄 Atualizar
+          </button>
+        }
       >
-        <h1 style={{ fontSize: 34, marginBottom: 6 }}>Ranking</h1>
-        <div style={{ opacity: 0.8, marginBottom: 16 }}>
-          Season = ordem por Cristais Sonoros + Tier • Nível e Relíquias
-          separados
-        </div>
-
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
           <TabButton active={tab === "season"} onClick={() => setTab("season")}>
             💎 Ranking da Season
@@ -207,39 +181,18 @@ export default function LeaderboardPage() {
           <TabButton active={tab === "reliquias"} onClick={() => setTab("reliquias")}>
             🏆 Ranking de Relíquias
           </TabButton>
-
-          <button
-            onClick={() => loadCurrent(true)}
-            style={{
-              marginLeft: "auto",
-              padding: "10px 12px",
-              borderRadius: 12,
-              border: "1px solid rgba(255,255,255,0.12)",
-              background: "rgba(255,255,255,0.06)",
-              color: "white",
-              cursor: "pointer",
-            }}
-          >
-            🔄 Atualizar
-          </button>
         </div>
 
-        {loading && <div style={{ opacity: 0.8 }}>Carregando...</div>}
+        {loading ? <LoadingDots label="Invocando o placar" /> : null}
 
-        {err && (
-          <div
-            style={{
-              border: "1px solid rgba(255,80,80,0.35)",
-              padding: 12,
-              borderRadius: 12,
-            }}
-          >
+        {err ? (
+          <div style={{ border: "1px solid rgba(255,80,80,0.35)", padding: 12, borderRadius: 12 }}>
             ❌ {err}
           </div>
-        )}
+        ) : null}
 
-        {!loading && !err && <Table rows={rows} mode={tab} />}
-      </div>
+        {!loading && !err ? <Table rows={rows} mode={tab} /> : null}
+      </GVQShell>
     </AuthGate>
   );
 }
