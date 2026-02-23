@@ -1,165 +1,98 @@
 "use client";
 
-import { useState } from "react";
-import { setToken } from "@/lib/api";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import GVQShell from "@/components/GVQShell";
+import { apiRequest, getToken } from "@/lib/api";
+import { GVQButton, GVQInput, GVQAlert } from "@/components/ui/GVQ";
 
 export default function LoginPage() {
-  const [email, setEmail] = useState("");
-  const [code, setCode] = useState("");
+  const router = useRouter();
 
-  const [step, setStep] = useState("email"); // "email" | "code"
+  const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
+  const [msgType, setMsgType] = useState("info"); // info | error | success
   const [loading, setLoading] = useState(false);
 
-  const requestOtp = async () => {
+  useEffect(() => {
+    const token = getToken();
+    if (token) router.replace("/dashboard");
+  }, [router]);
+
+  async function requestOtp() {
     const cleanEmail = email.trim().toLowerCase();
     if (!cleanEmail) {
+      setMsgType("error");
       setMessage("Digite seu e-mail.");
       return;
     }
 
     setLoading(true);
     setMessage("");
+    setMsgType("info");
 
-    try {
-      const res = await fetch("/api/auth/request-otp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        cache: "no-store",
-        body: JSON.stringify({ email: cleanEmail }),
-      });
+    const r = await apiRequest("/api/auth/request-otp", {
+      method: "POST",
+      auth: false,
+      body: { email: cleanEmail },
+    });
 
-      const data = await res.json().catch(() => ({}));
+    setLoading(false);
 
-      if (res.ok && data?.ok) {
-        setStep("code");
-        setMessage("✅ Código enviado. Verifique seu e-mail (e o spam).");
-      } else {
-        setMessage(data?.error || "Erro ao enviar código.");
-      }
-    } catch {
-      setMessage("Erro de conexão com o servidor.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const verifyOtp = async () => {
-    const cleanEmail = email.trim().toLowerCase();
-    const cleanCode = code.trim();
-
-    if (!cleanEmail) {
-      setMessage("Digite seu e-mail.");
-      setStep("email");
-      return;
-    }
-    if (cleanCode.length !== 6) {
-      setMessage("Digite o código de 6 dígitos.");
+    if (!r.ok) {
+      setMsgType("error");
+      setMessage(r.data?.error || `Erro ao enviar código (HTTP ${r.status})`);
       return;
     }
 
-    setLoading(true);
-    setMessage("");
+    setMsgType("success");
+    setMessage("✅ Código enviado. Abrindo o Portal...");
 
-    try {
-      const res = await fetch("/api/auth/verify-otp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        cache: "no-store",
-        body: JSON.stringify({ email: cleanEmail, code: cleanCode }),
-      });
-
-      const data = await res.json().catch(() => ({}));
-
-      if (res.ok && data?.ok && data?.token) {
-        setToken(data.token);
-        setMessage("✅ Login confirmado! Token salvo.");
-        // window.location.href = "/dashboard";
-      } else {
-        setMessage(data?.error || "Código inválido.");
-      }
-    } catch {
-      setMessage("Erro de conexão com o servidor.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const reset = () => {
-    setCode("");
-    setStep("email");
-    setMessage("");
-  };
+    router.push(`/otp?email=${encodeURIComponent(cleanEmail)}`);
+  }
 
   return (
-    <div style={{ padding: 40 }}>
-      <h1>GVQ — Login</h1>
+    <GVQShell
+      title="Entrada na Taverna"
+      subtitle="Receba o Código do Guardião por e-mail"
+      footer={
+        <>
+          📩 Se não chegar em 1–2 minutos, confira o spam.
+          <br />
+          ⏳ Reenvio respeita cooldown (anti-spam).
+        </>
+      }
+      accent={msgType === "error" ? "error" : msgType === "success" ? "success" : "default"}
+    >
+      <div style={{ opacity: 0.9, fontSize: 14, lineHeight: 1.45 }}>
+        Digite seu e-mail para receber o <b>Código do Guardião</b>.
+      </div>
 
-      <div style={{ marginTop: 16 }}>
-        <label style={{ display: "block", marginBottom: 6 }}>Seu e-mail</label>
-        <input
-          type="email"
-          placeholder="Seu email"
+      <div style={{ marginTop: 10 }}>
+        <div style={{ fontSize: 13, opacity: 0.75 }}>E-mail</div>
+
+        <GVQInput
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          style={{ padding: 10, width: 320 }}
-          disabled={loading || step === "code"}
+          placeholder="seu@email.com"
+          disabled={loading}
+          autoComplete="email"
         />
+
+        <GVQButton
+          full
+          onClick={requestOtp}
+          disabled={!email.trim()}
+          loading={loading}
+          loadingLabel="Enviando"
+          variant="primary"
+          style={{ marginTop: 14 }}
+        >
+          Enviar código
+        </GVQButton>
+
+        {message ? <GVQAlert type={msgType}>{message}</GVQAlert> : null}
       </div>
-
-      {step === "code" && (
-        <div style={{ marginTop: 16 }}>
-          <label style={{ display: "block", marginBottom: 6 }}>
-            Código (6 dígitos)
-          </label>
-          <input
-            inputMode="numeric"
-            placeholder="000000"
-            value={code}
-            onChange={(e) =>
-              setCode(e.target.value.replace(/\D/g, "").slice(0, 6))
-            }
-            style={{ padding: 10, width: 140, letterSpacing: 4 }}
-            disabled={loading}
-          />
-        </div>
-      )}
-
-      <div style={{ marginTop: 18 }}>
-        {step === "email" ? (
-          <button onClick={requestOtp} disabled={loading || !email.trim()}>
-            {loading ? "Enviando..." : "Enviar código"}
-          </button>
-        ) : (
-          <>
-            <button
-              onClick={verifyOtp}
-              disabled={loading || code.trim().length !== 6}
-            >
-              {loading ? "Confirmando..." : "Confirmar código"}
-            </button>
-
-            <button
-              onClick={requestOtp}
-              disabled={loading}
-              style={{ marginLeft: 10 }}
-              title="Reenviar (respeita o cooldown do backend)"
-            >
-              Reenviar código
-            </button>
-
-            <button
-              onClick={reset}
-              disabled={loading}
-              style={{ marginLeft: 10 }}
-            >
-              Trocar e-mail
-            </button>
-          </>
-        )}
-      </div>
-
-      <p style={{ marginTop: 14 }}>{message}</p>
-    </div>
+    </GVQShell>
   );
 }

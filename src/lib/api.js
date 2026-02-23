@@ -27,8 +27,17 @@ function joinUrl(base, path) {
   return `${base}${path}`;
 }
 
-export async function apiFetch(path, { method = "GET", body, auth = false } = {}) {
-  const headers = new Headers();
+/**
+ * Padrão único de request:
+ * - NÃO dá throw por padrão
+ * - retorna { ok, status, data }
+ * - se auth=true, injeta Authorization Bearer
+ */
+export async function apiRequest(
+  path,
+  { method = "GET", body, auth = false, headers: extraHeaders } = {}
+) {
+  const headers = new Headers(extraHeaders || {});
   headers.set("Content-Type", "application/json");
 
   if (auth) {
@@ -38,44 +47,43 @@ export async function apiFetch(path, { method = "GET", body, auth = false } = {}
 
   const url = joinUrl(getBase(), path);
 
-  const res = await fetch(url, {
-    method,
-    headers,
-    cache: "no-store",
-    body: body ? JSON.stringify(body) : undefined,
-  });
-
-  const data = await res.json().catch(() => ({}));
-
-  if (!res.ok) {
-    const msg = data?.error || `Erro HTTP ${res.status}`;
-    throw new Error(msg);
+  let res;
+  try {
+    res = await fetch(url, {
+      method,
+      headers,
+      cache: "no-store",
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  } catch (e) {
+    // erro de rede (offline, DNS, CORS hard fail etc.)
+    return { ok: false, status: 0, data: { error: "network_error" } };
   }
 
-  return data;
+  const data = await res.json().catch(() => ({}));
+  return { ok: res.ok, status: res.status, data };
 }
 
-export async function apiGet(path, { auth = true } = {}) {
-  const headers = new Headers();
+/**
+ * Compat: apiFetch como você vinha usando nos componentes
+ * Agora retorna { ok, status, data } (SEM throw)
+ */
+export function apiFetch(path, opts = {}) {
+  return apiRequest(path, { auth: true, ...opts });
+}
 
-  if (auth) {
-    const token = getToken();
-    if (token) headers.set("Authorization", `Bearer ${token}`);
-  }
+/**
+ * Compat: apiGet retorna { ok, status, data } (SEM throw)
+ */
+export function apiGet(path, opts = {}) {
+  return apiRequest(path, { method: "GET", auth: true, ...opts });
+}
 
-  const url = joinUrl(getBase(), path);
-
-  const res = await fetch(url, {
-    method: "GET",
-    headers,
-    cache: "no-store",
-  });
-
-  // mantém o mesmo padrão do apiFetch: tenta ler json e propaga erro
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) {
-    const msg = data?.error || `Erro HTTP ${res.status}`;
-    throw new Error(msg);
-  }
-  return data;
+/**
+ * Opcional: helper para limpar token e voltar pro login
+ * (uso em telas/client)
+ */
+export function logoutAndRedirect(router) {
+  clearToken();
+  if (router) router.replace("/login");
 }
