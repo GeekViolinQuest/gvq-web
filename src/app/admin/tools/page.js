@@ -5,7 +5,7 @@ import { apiFetch } from "@/lib/api";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
-function Card({ children }: { children: React.ReactNode }) {
+function Card({ children }) {
   return (
     <div
       style={{
@@ -20,17 +20,7 @@ function Card({ children }: { children: React.ReactNode }) {
   );
 }
 
-function Input({
-  value,
-  onChange,
-  placeholder,
-  type = "text",
-}: {
-  value: string;
-  onChange: (e: any) => void;
-  placeholder?: string;
-  type?: string;
-}) {
+function Input({ value, onChange, placeholder, type = "text" }) {
   return (
     <input
       value={value}
@@ -50,19 +40,7 @@ function Input({
   );
 }
 
-function Button({
-  children,
-  onClick,
-  disabled,
-  variant = "primary",
-  title,
-}: {
-  children: React.ReactNode;
-  onClick?: () => void;
-  disabled?: boolean;
-  variant?: "primary" | "danger" | "ghost";
-  title?: string;
-}) {
+function Button({ children, onClick, disabled, variant = "primary", title }) {
   const bg =
     variant === "danger"
       ? "rgba(255, 80, 80, 0.18)"
@@ -90,7 +68,7 @@ function Button({
   );
 }
 
-function clampInt(raw: any, min: number, max: number) {
+function clampInt(raw, min, max) {
   const n = Number(raw);
   if (!Number.isFinite(n)) return null;
   const v = Math.trunc(n);
@@ -112,11 +90,11 @@ export default function AdminToolsPage() {
   // ===== UPGRADE 1: SEARCH =====
   const [q, setQ] = useState("");
   const [searching, setSearching] = useState(false);
-  const [results, setResults] = useState<any[]>([]);
+  const [results, setResults] = useState([]);
 
   // reset season
   const [resetConfirm, setResetConfirm] = useState("");
-  const [resetExpected, setResetExpected] = useState(""); // mostra o texto exato caso API retorne
+  const [resetExpected, setResetExpected] = useState("");
 
   // prefill via querystring (?userId=...&email=...)
   useEffect(() => {
@@ -154,7 +132,7 @@ export default function AdminToolsPage() {
       );
       if (!r?.ok) throw new Error(r?.error || "Falha na busca");
       setResults(r.rows || []);
-    } catch (e: any) {
+    } catch (e) {
       setResults([]);
       setErr(e?.message || "Erro na busca");
     } finally {
@@ -162,7 +140,7 @@ export default function AdminToolsPage() {
     }
   }
 
-  function useTarget(row: any) {
+  function useTarget(row) {
     const uid = row?.userId || "";
     const em = row?.acesso?.email || "";
     if (uid) setUserId(uid);
@@ -196,14 +174,10 @@ export default function AdminToolsPage() {
       if (!r?.ok) throw new Error(r?.error || "Falha ao ajustar");
 
       const label =
-        mode === "inc"
-          ? `+${amountInt}`
-          : mode === "dec"
-          ? `-${amountInt}`
-          : `= ${amountInt}`;
+        mode === "inc" ? `+${amountInt}` : mode === "dec" ? `-${amountInt}` : `= ${amountInt}`;
 
       setMsg(`✅ Cristais ajustados (${label}). Total agora: ${r.cristais ?? "—"} 💎`);
-    } catch (e: any) {
+    } catch (e) {
       setErr(e?.message || "Erro ao ajustar");
     } finally {
       setLoading(false);
@@ -211,8 +185,7 @@ export default function AdminToolsPage() {
   }
 
   // ===== UPGRADE 2: QUICK BUTTONS (execute adjustment) =====
-  async function quickAdjust(nextMode: "inc" | "dec" | "set", nextAmount: number) {
-    // seta UI (pra ficar visível o que foi feito)
+  async function quickAdjust(nextMode, nextAmount) {
     setMode(nextMode);
     setAmount(String(nextAmount));
 
@@ -222,7 +195,7 @@ export default function AdminToolsPage() {
       return;
     }
 
-    // regra: adjust aceita amount 1..500; SET 0 deve usar endpoint /set
+    // SET 0: usa endpoint /set (porque /adjust set costuma ser 1..500)
     if (nextMode === "set" && nextAmount === 0) {
       setLoading(true);
       setMsg("");
@@ -240,7 +213,7 @@ export default function AdminToolsPage() {
         });
         if (!r?.ok) throw new Error(r?.error || "Falha ao definir cristais");
         setMsg(`✅ Cristais definidos para 0. Total agora: ${r.cristais ?? "—"} 💎`);
-      } catch (e: any) {
+      } catch (e) {
         setErr(e?.message || "Erro ao definir cristais");
       } finally {
         setLoading(false);
@@ -248,7 +221,6 @@ export default function AdminToolsPage() {
       return;
     }
 
-    // default: usa adjust normal
     setLoading(true);
     setMsg("");
     setErr("");
@@ -274,7 +246,7 @@ export default function AdminToolsPage() {
           : `= ${nextAmount}`;
 
       setMsg(`✅ Cristais ajustados (${label}). Total agora: ${r.cristais ?? "—"} 💎`);
-    } catch (e: any) {
+    } catch (e) {
       setErr(e?.message || "Erro ao ajustar");
     } finally {
       setLoading(false);
@@ -294,7 +266,6 @@ export default function AdminToolsPage() {
       });
 
       if (!r?.ok) {
-        // API manda expected quando confirmação não bate
         if (r?.expected) setResetExpected(r.expected);
         throw new Error(r?.error || "Falha ao resetar");
       }
@@ -302,7 +273,7 @@ export default function AdminToolsPage() {
       setMsg(`✅ Season resetada! Cristais zerados para todos. (modified: ${r.modified ?? "—"})`);
       setResetConfirm("");
       setResetExpected("");
-    } catch (e: any) {
+    } catch (e) {
       setErr(e?.message || "Erro ao resetar");
     } finally {
       setLoading(false);
@@ -315,9 +286,7 @@ export default function AdminToolsPage() {
         <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
           <div>
             <h1 style={{ fontSize: 34, marginBottom: 6 }}>Painel do Guardião Mestre — Tools</h1>
-            <div style={{ opacity: 0.8 }}>
-              Ajustes manuais (cristais) e reset global da Season.
-            </div>
+            <div style={{ opacity: 0.8 }}>Ajustes manuais (cristais) e reset global da Season.</div>
           </div>
 
           <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
@@ -384,7 +353,6 @@ export default function AdminToolsPage() {
                         Usar alvo
                       </Button>
 
-                      {/* link prático pra abrir a página já preenchida */}
                       <a
                         href={`/admin/tools?userId=${encodeURIComponent(r.userId || "")}&email=${encodeURIComponent(
                           r?.acesso?.email || ""
@@ -423,22 +391,14 @@ export default function AdminToolsPage() {
                 <div style={{ fontSize: 12, opacity: 0.8, marginBottom: 6 }}>
                   Email (opcional — você pode usar só email)
                 </div>
-                <Input
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="ex: aluno@email.com"
-                />
+                <Input value={email} onChange={(e) => setEmail(e.target.value)} placeholder="ex: aluno@email.com" />
               </div>
 
               <div>
                 <div style={{ fontSize: 12, opacity: 0.8, marginBottom: 6 }}>
                   userId (opcional — você pode usar só userId)
                 </div>
-                <Input
-                  value={userId}
-                  onChange={(e) => setUserId(e.target.value)}
-                  placeholder="ex: 65f0c1..."
-                />
+                <Input value={userId} onChange={(e) => setUserId(e.target.value)} placeholder="ex: 65f0c1..." />
               </div>
             </div>
 
@@ -466,12 +426,7 @@ export default function AdminToolsPage() {
 
               <div>
                 <div style={{ fontSize: 12, opacity: 0.8, marginBottom: 6 }}>Quantidade (1..500)</div>
-                <Input
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  placeholder="ex: 2"
-                  type="number"
-                />
+                <Input value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="ex: 2" type="number" />
               </div>
             </div>
 
@@ -509,12 +464,7 @@ export default function AdminToolsPage() {
               <Button variant="ghost" onClick={() => quickAdjust("dec", 5)} disabled={loading}>
                 -5
               </Button>
-              <Button
-                variant="danger"
-                onClick={() => quickAdjust("set", 0)}
-                disabled={loading}
-                title='Usa /api/admin/cristais/set com value=0'
-              >
+              <Button variant="danger" onClick={() => quickAdjust("set", 0)} disabled={loading} title="Define 0 via /set">
                 SET 0
               </Button>
             </div>
@@ -545,11 +495,7 @@ export default function AdminToolsPage() {
                   </span>
                 ) : null}
               </div>
-              <Input
-                value={resetConfirm}
-                onChange={(e) => setResetConfirm(e.target.value)}
-                placeholder='ex: "RESETAR 2026-W08"'
-              />
+              <Input value={resetConfirm} onChange={(e) => setResetConfirm(e.target.value)} placeholder='ex: "RESETAR 2026-W08"' />
             </div>
 
             <div style={{ display: "flex", gap: 10, marginTop: 12, flexWrap: "wrap" }}>
