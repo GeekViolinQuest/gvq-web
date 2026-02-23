@@ -5,7 +5,7 @@ import { apiFetch } from "@/lib/api";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
-function Card({ children }) {
+function Card({ children }: { children: React.ReactNode }) {
   return (
     <div
       style={{
@@ -20,7 +20,17 @@ function Card({ children }) {
   );
 }
 
-function Input({ value, onChange, placeholder, type = "text" }) {
+function Input({
+  value,
+  onChange,
+  placeholder,
+  type = "text",
+}: {
+  value: string;
+  onChange: (e: any) => void;
+  placeholder?: string;
+  type?: string;
+}) {
   return (
     <input
       value={value}
@@ -40,7 +50,19 @@ function Input({ value, onChange, placeholder, type = "text" }) {
   );
 }
 
-function Button({ children, onClick, disabled, variant = "primary", title }) {
+function Button({
+  children,
+  onClick,
+  disabled,
+  variant = "primary",
+  title,
+}: {
+  children: React.ReactNode;
+  onClick?: () => void;
+  disabled?: boolean;
+  variant?: "primary" | "danger" | "ghost";
+  title?: string;
+}) {
   const bg =
     variant === "danger"
       ? "rgba(255, 80, 80, 0.18)"
@@ -68,7 +90,7 @@ function Button({ children, onClick, disabled, variant = "primary", title }) {
   );
 }
 
-function clampInt(raw, min, max) {
+function clampInt(raw: any, min: number, max: number) {
   const n = Number(raw);
   if (!Number.isFinite(n)) return null;
   const v = Math.trunc(n);
@@ -86,6 +108,11 @@ export default function AdminToolsPage() {
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
+
+  // ===== UPGRADE 1: SEARCH =====
+  const [q, setQ] = useState("");
+  const [searching, setSearching] = useState(false);
+  const [results, setResults] = useState<any[]>([]);
 
   // reset season
   const [resetConfirm, setResetConfirm] = useState("");
@@ -111,6 +138,43 @@ export default function AdminToolsPage() {
     return !!hasTarget && !!amountInt && ["inc", "dec", "set"].includes(mode);
   }, [userId, email, amountInt, mode]);
 
+  async function search() {
+    const qq = q.trim();
+    if (!qq) {
+      setResults([]);
+      return;
+    }
+
+    setSearching(true);
+    setErr("");
+    try {
+      const r = await apiFetch(
+        `/api/admin/cristais/search?q=${encodeURIComponent(qq)}&limit=20`,
+        { method: "GET", auth: true }
+      );
+      if (!r?.ok) throw new Error(r?.error || "Falha na busca");
+      setResults(r.rows || []);
+    } catch (e: any) {
+      setResults([]);
+      setErr(e?.message || "Erro na busca");
+    } finally {
+      setSearching(false);
+    }
+  }
+
+  function useTarget(row: any) {
+    const uid = row?.userId || "";
+    const em = row?.acesso?.email || "";
+    if (uid) setUserId(uid);
+    if (em) setEmail(em);
+
+    setMsg(
+      `🎯 Alvo selecionado: ${
+        row?.acesso?.displayName || row?.acesso?.nomeReal || em || uid
+      }`
+    );
+  }
+
   async function adjustCristais() {
     setLoading(true);
     setMsg("");
@@ -132,10 +196,85 @@ export default function AdminToolsPage() {
       if (!r?.ok) throw new Error(r?.error || "Falha ao ajustar");
 
       const label =
-        mode === "inc" ? `+${amountInt}` : mode === "dec" ? `-${amountInt}` : `= ${amountInt}`;
+        mode === "inc"
+          ? `+${amountInt}`
+          : mode === "dec"
+          ? `-${amountInt}`
+          : `= ${amountInt}`;
 
       setMsg(`✅ Cristais ajustados (${label}). Total agora: ${r.cristais ?? "—"} 💎`);
-    } catch (e) {
+    } catch (e: any) {
+      setErr(e?.message || "Erro ao ajustar");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // ===== UPGRADE 2: QUICK BUTTONS (execute adjustment) =====
+  async function quickAdjust(nextMode: "inc" | "dec" | "set", nextAmount: number) {
+    // seta UI (pra ficar visível o que foi feito)
+    setMode(nextMode);
+    setAmount(String(nextAmount));
+
+    const hasTarget = userId.trim() || email.trim();
+    if (!hasTarget) {
+      setErr("Escolha um alvo (userId ou email) antes de usar atalho.");
+      return;
+    }
+
+    // regra: adjust aceita amount 1..500; SET 0 deve usar endpoint /set
+    if (nextMode === "set" && nextAmount === 0) {
+      setLoading(true);
+      setMsg("");
+      setErr("");
+      setResetExpected("");
+      try {
+        const r = await apiFetch("/api/admin/cristais/set", {
+          method: "POST",
+          auth: true,
+          body: {
+            userId: userId.trim() || undefined,
+            email: email.trim() || undefined,
+            value: 0,
+          },
+        });
+        if (!r?.ok) throw new Error(r?.error || "Falha ao definir cristais");
+        setMsg(`✅ Cristais definidos para 0. Total agora: ${r.cristais ?? "—"} 💎`);
+      } catch (e: any) {
+        setErr(e?.message || "Erro ao definir cristais");
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    // default: usa adjust normal
+    setLoading(true);
+    setMsg("");
+    setErr("");
+    setResetExpected("");
+    try {
+      const r = await apiFetch("/api/admin/cristais/adjust", {
+        method: "POST",
+        auth: true,
+        body: {
+          userId: userId.trim() || undefined,
+          email: email.trim() || undefined,
+          mode: nextMode,
+          amount: nextAmount,
+        },
+      });
+      if (!r?.ok) throw new Error(r?.error || "Falha ao ajustar");
+
+      const label =
+        nextMode === "inc"
+          ? `+${nextAmount}`
+          : nextMode === "dec"
+          ? `-${nextAmount}`
+          : `= ${nextAmount}`;
+
+      setMsg(`✅ Cristais ajustados (${label}). Total agora: ${r.cristais ?? "—"} 💎`);
+    } catch (e: any) {
       setErr(e?.message || "Erro ao ajustar");
     } finally {
       setLoading(false);
@@ -160,12 +299,10 @@ export default function AdminToolsPage() {
         throw new Error(r?.error || "Falha ao resetar");
       }
 
-      setMsg(
-        `✅ Season resetada! Cristais zerados para todos. (modified: ${r.modified ?? "—"})`
-      );
+      setMsg(`✅ Season resetada! Cristais zerados para todos. (modified: ${r.modified ?? "—"})`);
       setResetConfirm("");
       setResetExpected("");
-    } catch (e) {
+    } catch (e: any) {
       setErr(e?.message || "Erro ao resetar");
     } finally {
       setLoading(false);
@@ -194,6 +331,89 @@ export default function AdminToolsPage() {
         {err ? <div style={{ marginTop: 14, color: "#feb2b2" }}>❌ {err}</div> : null}
 
         <div style={{ marginTop: 18, display: "grid", gap: 14 }}>
+          {/* ===== UPGRADE 1: Busca ===== */}
+          <Card>
+            <div style={{ fontWeight: 900, marginBottom: 10 }}>🔎 Buscar aluno (Acesso + Aluno)</div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 160px", gap: 10 }}>
+              <Input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="email, nome, displayName, discordId, userId..."
+              />
+              <Button onClick={search} disabled={loading || searching || !q.trim()}>
+                {searching ? "Buscando..." : "Buscar"}
+              </Button>
+            </div>
+
+            {results?.length ? (
+              <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
+                {results.map((r) => (
+                  <div
+                    key={r.userId || r?.acesso?.id || r?.aluno?.id}
+                    style={{
+                      border: "1px solid rgba(255,255,255,0.10)",
+                      borderRadius: 12,
+                      padding: 12,
+                      display: "grid",
+                      gridTemplateColumns: "1fr auto",
+                      gap: 10,
+                      alignItems: "center",
+                    }}
+                  >
+                    <div style={{ fontSize: 13, opacity: 0.95 }}>
+                      <div style={{ fontWeight: 900 }}>
+                        {r?.acesso?.displayName || r?.acesso?.nomeReal || "—"}
+                        <span style={{ opacity: 0.75, fontWeight: 400 }}>
+                          {" "}
+                          • {r?.acesso?.email || "sem email"}
+                        </span>
+                      </div>
+
+                      <div style={{ fontSize: 12, opacity: 0.8, marginTop: 4, lineHeight: 1.35 }}>
+                        userId: <b>{r.userId || "—"}</b>
+                        {"  "}• discordId:{" "}
+                        <b>{r?.acesso?.discordId || r?.aluno?.discordId || "—"}</b>
+                        {"  "}• cristais: <b>{r?.aluno?.cristais ?? "—"}</b>
+                        {"  "}• level: <b>{r?.aluno?.level ?? "—"}</b>
+                      </div>
+                    </div>
+
+                    <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                      <Button variant="ghost" onClick={() => useTarget(r)} disabled={loading}>
+                        Usar alvo
+                      </Button>
+
+                      {/* link prático pra abrir a página já preenchida */}
+                      <a
+                        href={`/admin/tools?userId=${encodeURIComponent(r.userId || "")}&email=${encodeURIComponent(
+                          r?.acesso?.email || ""
+                        )}`}
+                        style={{
+                          color: "white",
+                          textDecoration: "none",
+                          opacity: 0.85,
+                          fontSize: 12,
+                          border: "1px solid rgba(255,255,255,0.12)",
+                          borderRadius: 12,
+                          padding: "10px 12px",
+                          background: "rgba(255,255,255,0.06)",
+                        }}
+                        title="Abrir com target preenchido"
+                      >
+                        Abrir
+                      </a>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div style={{ marginTop: 10, fontSize: 12, opacity: 0.75 }}>
+                {q.trim() ? "Sem resultados (ou busque novamente)." : "Digite algo e clique Buscar."}
+              </div>
+            )}
+          </Card>
+
           {/* Ajuste de Cristais */}
           <Card>
             <div style={{ fontWeight: 900, marginBottom: 10 }}>💎 Ajustar Cristais</div>
@@ -269,6 +489,33 @@ export default function AdminToolsPage() {
                 disabled={loading}
               >
                 Limpar mensagens
+              </Button>
+            </div>
+
+            {/* ===== UPGRADE 2: Atalhos ===== */}
+            <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <Button variant="ghost" onClick={() => quickAdjust("inc", 1)} disabled={loading}>
+                +1
+              </Button>
+              <Button variant="ghost" onClick={() => quickAdjust("inc", 2)} disabled={loading}>
+                +2
+              </Button>
+              <Button variant="ghost" onClick={() => quickAdjust("inc", 5)} disabled={loading}>
+                +5
+              </Button>
+              <Button variant="ghost" onClick={() => quickAdjust("dec", 2)} disabled={loading}>
+                -2
+              </Button>
+              <Button variant="ghost" onClick={() => quickAdjust("dec", 5)} disabled={loading}>
+                -5
+              </Button>
+              <Button
+                variant="danger"
+                onClick={() => quickAdjust("set", 0)}
+                disabled={loading}
+                title='Usa /api/admin/cristais/set com value=0'
+              >
+                SET 0
               </Button>
             </div>
 
