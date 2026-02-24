@@ -6,6 +6,8 @@ import LoadingDots from "@/components/LoadingDots";
 import { apiGet } from "@/lib/api";
 import { useEffect, useMemo, useState } from "react";
 
+const AVATAR_PLACEHOLDER = "/avatar-placeholder.png"; // se não tiver, pode trocar por "/locked.png"
+
 function TabButton({ active, onClick, children }) {
   return (
     <button
@@ -40,6 +42,7 @@ function TierBadge({ row }) {
         background: row.isFirstEstelar ? "rgba(255,215,0,0.18)" : "rgba(255,255,255,0.06)",
         opacity: 0.95,
         fontWeight: 900,
+        whiteSpace: "nowrap",
       }}
       title={
         row.isFirstEstelar
@@ -52,14 +55,111 @@ function TierBadge({ row }) {
   );
 }
 
+function AvatarImg({ src, size = 34 }) {
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={src || AVATAR_PLACEHOLDER}
+      alt=""
+      style={{
+        width: size,
+        height: size,
+        borderRadius: Math.max(10, Math.floor(size * 0.3)),
+        objectFit: "cover",
+        border: "1px solid rgba(255,255,255,0.14)",
+        background: "rgba(255,255,255,0.04)",
+        flex: "0 0 auto",
+      }}
+      onError={(e) => {
+        e.currentTarget.onerror = null;
+        e.currentTarget.src = AVATAR_PLACEHOLDER;
+      }}
+    />
+  );
+}
+
+function Top3({ rows, mode }) {
+  const top = (rows || []).slice(0, 3);
+  if (!top.length) return null;
+
+  const medal = ["🥇", "🥈", "🥉"];
+
+  const valueOf = (r) =>
+    mode === "level" ? r.level : mode === "season" ? r.cristais : r.reliquiasCount;
+
+  const label =
+    mode === "level" ? "Nível" : mode === "season" ? "Cristais" : "Relíquias";
+
+  return (
+    <div
+      style={{
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
+        gap: 12,
+        marginBottom: 14,
+      }}
+    >
+      {top.map((r, i) => (
+        <div
+          key={`top-${mode}-${r.userId || "x"}-${i}`}
+          style={{
+            border: "1px solid rgba(255,255,255,0.14)",
+            borderRadius: 16,
+            padding: 14,
+            background: "rgba(255,255,255,0.04)",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ fontSize: 22, width: 30 }}>{medal[i]}</div>
+
+            <AvatarImg src={r.avatarUrl} size={46} />
+
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div
+                style={{
+                  fontWeight: 1000,
+                  display: "flex",
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                  gap: 8,
+                  lineHeight: 1.15,
+                }}
+              >
+                <span style={{ wordBreak: "break-word" }}>
+                  {r.displayName || "Guardião"}
+                </span>
+                {mode === "season" ? <TierBadge row={r} /> : null}
+              </div>
+
+              <div style={{ opacity: 0.82, fontSize: 13, marginTop: 4 }}>
+                {label}: <span style={{ fontWeight: 1000 }}>{valueOf(r) ?? 0}</span>
+                {mode === "season" ? (
+                  <span style={{ opacity: 0.9 }}> • Nível {r.level ?? 0}</span>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function Table({ rows, mode }) {
-  const colLabel = mode === "level" ? "Nível" : mode === "season" ? "Cristais" : "Relíquias";
+  const colLabel =
+    mode === "level" ? "Nível" : mode === "season" ? "Cristais" : "Relíquias";
 
   const valueOf = (r) =>
     mode === "level" ? r.level : mode === "season" ? r.cristais : r.reliquiasCount;
 
   return (
-    <div style={{ border: "1px solid rgba(255,255,255,0.12)", borderRadius: 14, overflow: "hidden" }}>
+    <div
+      style={{
+        border: "1px solid rgba(255,255,255,0.12)",
+        borderRadius: 14,
+        overflow: "hidden",
+      }}
+    >
       <div
         style={{
           display: "grid",
@@ -89,18 +189,35 @@ function Table({ rows, mode }) {
           >
             <div style={{ fontWeight: 1000 }}>{r.rank}</div>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-              <div style={{ fontWeight: 900, display: "flex", alignItems: "center", flexWrap: "wrap" }}>
-                {r.displayName || "Guardião"}
-                {mode === "season" ? <TierBadge row={r} /> : null}
-              </div>
-              <div style={{ opacity: 0.7, fontSize: 12 }}>
-                {mode === "season" ? `Nível ${r.level} • Relíquias ${r.reliquiasCount}` : `Cristais ${r.cristais}`}
+            <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
+              <AvatarImg src={r.avatarUrl} size={34} />
+
+              <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
+                <div
+                  style={{
+                    fontWeight: 900,
+                    display: "flex",
+                    alignItems: "center",
+                    flexWrap: "wrap",
+                    minWidth: 0,
+                  }}
+                >
+                  <span style={{ wordBreak: "break-word" }}>
+                    {r.displayName || "Guardião"}
+                  </span>
+                  {mode === "season" ? <TierBadge row={r} /> : null}
+                </div>
+
+                <div style={{ opacity: 0.7, fontSize: 12 }}>
+                  {mode === "season"
+                    ? `Nível ${r.level ?? 0} • Relíquias ${r.reliquiasCount ?? 0}`
+                    : `Cristais ${r.cristais ?? 0}`}
+                </div>
               </div>
             </div>
 
             <div style={{ textAlign: "right", fontWeight: 1000, fontSize: 16 }}>
-              {valueOf(r)}
+              {valueOf(r) ?? 0}
             </div>
           </div>
         ))
@@ -116,7 +233,11 @@ export default function LeaderboardPage() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
 
-  const [data, setData] = useState({ season: null, level: null, reliquias: null });
+  const [data, setData] = useState({
+    season: null,
+    level: null,
+    reliquias: null,
+  });
 
   async function loadCurrent(force = false) {
     setErr("");
@@ -191,7 +312,12 @@ export default function LeaderboardPage() {
           </div>
         ) : null}
 
-        {!loading && !err ? <Table rows={rows} mode={tab} /> : null}
+        {!loading && !err ? (
+          <>
+            <Top3 rows={rows} mode={tab} />
+            <Table rows={rows} mode={tab} />
+          </>
+        ) : null}
       </GVQShell>
     </AuthGate>
   );

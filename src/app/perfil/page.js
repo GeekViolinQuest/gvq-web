@@ -18,13 +18,14 @@ function ItemCard({ title, subtitle, img, locked, tag }) {
         alignItems: "center",
         opacity: locked ? 0.35 : 1,
         background: "rgba(255,255,255,0.03)",
+      
       }}
     >
       <div
         style={{
-          width: 64,
-          height: 64,
-          borderRadius: 10,
+          width: 128,
+          height: 128,
+          borderRadius: 14,
           overflow: "hidden",
           border: "1px solid rgba(255,255,255,0.12)",
           background: "rgba(255,255,255,0.04)",
@@ -36,6 +37,10 @@ function ItemCard({ title, subtitle, img, locked, tag }) {
           src={img || "/locked.png"}
           alt={title}
           style={{ width: "100%", height: "100%", objectFit: "cover" }}
+          onError={(e) => {
+            e.currentTarget.onerror = null;
+            e.currentTarget.src = "/locked.png";
+        }}
         />
       </div>
 
@@ -278,9 +283,13 @@ function AvatarEditor({ user, onUpdated }) {
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src={preview || "/locked.png"}
+            src={preview || "/avatar-placeholder.png"}
             alt="Avatar"
             style={{ width: "100%", height: "100%", objectFit: "cover" }}
+            onError={(e) => {
+              e.currentTarget.onerror = null;
+              e.currentTarget.src = "/avatar-placeholder.png";
+            }}    
           />
         </div>
 
@@ -435,7 +444,7 @@ export default function PerfilPage() {
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+                gridTemplateColumns: "repeat(auto-fit, minmax(420px, 1fr))",
                 gap: 12,
                 marginBottom: 22,
               }}
