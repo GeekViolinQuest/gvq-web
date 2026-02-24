@@ -50,7 +50,8 @@ function Button({ children, onClick, disabled, variant = "solid", title }) {
         padding: "12px 14px",
         borderRadius: 12,
         border: "1px solid rgba(255,255,255,0.12)",
-        background: variant === "solid" ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.06)",
+        background:
+          variant === "solid" ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.06)",
         color: "white",
         cursor: disabled ? "not-allowed" : "pointer",
         opacity: disabled ? 0.55 : 1,
@@ -104,10 +105,7 @@ export default function LoginPage() {
       setStep("email");
       return;
     }
-
-    if (cleanCode.length !== 6) {
-      return setMessage("Digite o código de 6 dígitos.");
-    }
+    if (cleanCode.length !== 6) return setMessage("Digite o código de 6 dígitos.");
 
     setLoading(true);
     setMessage("");
@@ -118,27 +116,23 @@ export default function LoginPage() {
       { auth: false }
     );
 
-    console.log("VERIFY RESPONSE:", r); // 👈 DEBUG
-
     setLoading(false);
 
-    if (!r.ok) {
-      return setMessage(r.error || "Código inválido.");
-    }
+    if (!r.ok) return setMessage(r.error || "Código inválido.");
 
-    // 🔥 Aqui está o ajuste robusto
-    const token =
-      r.token ||
-      r.data?.token ||
-      r.data?.data?.token ||
-      null;
-
-    if (!token) {
-      return setMessage("Token não retornou. Tente novamente.");
-    }
+    // ✅ seu apiFetch agora “desembrulha” o JSON, então token vem em r.token
+    // (fallback só por segurança, caso algum endpoint ainda retorne no formato antigo)
+    const token = r.token || r.data?.token;
+    if (!token) return setMessage("Token não retornou. Tente novamente.");
 
     setToken(token);
     router.replace("/dashboard");
+  }
+
+  function reset() {
+    setCode("");
+    setStep("email");
+    setMessage("");
   }
 
   return (
@@ -163,7 +157,9 @@ export default function LoginPage() {
 
             {step === "code" ? (
               <div>
-                <div style={{ opacity: 0.8, fontSize: 13, marginBottom: 6 }}>Código (6 dígitos)</div>
+                <div style={{ opacity: 0.8, fontSize: 13, marginBottom: 6 }}>
+                  Código (6 dígitos)
+                </div>
                 <Input
                   inputMode="numeric"
                   placeholder="000000"

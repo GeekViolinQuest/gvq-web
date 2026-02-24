@@ -110,7 +110,7 @@ export default function OtpClient() {
 
     if (!r.ok) return setMsg(r.error || "Erro ao verificar OTP");
 
-    const token = r.data?.token;
+    const token = r.token;
     if (!token) return setMsg("Token não retornou. Tente novamente.");
 
     setToken(token);
