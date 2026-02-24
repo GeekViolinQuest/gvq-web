@@ -1,6 +1,8 @@
 "use client";
 
 import AuthGate from "@/components/AuthGate";
+import GVQShell from "@/components/GVQShell";
+import LoadingDots from "@/components/LoadingDots";
 import { apiFetch, apiGet } from "@/lib/api";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
@@ -18,6 +20,66 @@ function Tag({ text }) {
     >
       {text}
     </span>
+  );
+}
+
+function Button({ onClick, children, disabled, variant = "solid", title, style }) {
+  return (
+    <button
+      title={title}
+      onClick={onClick}
+      disabled={disabled}
+      style={{
+        padding: "10px 12px",
+        borderRadius: 12,
+        border: "1px solid rgba(255,255,255,0.12)",
+        background: variant === "solid" ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.06)",
+        color: "white",
+        cursor: disabled ? "not-allowed" : "pointer",
+        opacity: disabled ? 0.55 : 1,
+        fontWeight: 900,
+        ...style,
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function Input(props) {
+  return (
+    <input
+      {...props}
+      style={{
+        width: "100%",
+        padding: 12,
+        borderRadius: 12,
+        border: "1px solid rgba(255,255,255,0.12)",
+        background: "rgba(255,255,255,0.04)",
+        color: "white",
+        outline: "none",
+        ...props.style,
+      }}
+    />
+  );
+}
+
+function Textarea(props) {
+  return (
+    <textarea
+      {...props}
+      style={{
+        width: "100%",
+        padding: 12,
+        borderRadius: 12,
+        border: "1px solid rgba(255,255,255,0.12)",
+        background: "rgba(255,255,255,0.04)",
+        color: "white",
+        outline: "none",
+        resize: "vertical",
+        ...props.style,
+      }}
+    />
   );
 }
 
@@ -50,12 +112,8 @@ function TopicCard({ t }) {
         }}
       >
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-          {t.isPinned ? (
-            <span style={{ fontSize: 12, opacity: 0.9 }}>📌 Fixado</span>
-          ) : null}
-          {t.isLocked ? (
-            <span style={{ fontSize: 12, opacity: 0.9 }}>🔒 Bloqueado</span>
-          ) : null}
+          {t.isPinned ? <span style={{ fontSize: 12, opacity: 0.9 }}>📌 Fixado</span> : null}
+          {t.isLocked ? <span style={{ fontSize: 12, opacity: 0.9 }}>🔒 Bloqueado</span> : null}
           <div style={{ fontWeight: 900, fontSize: 16 }}>{t.title}</div>
         </div>
 
@@ -105,90 +163,94 @@ export default function ForumPage() {
     return t.length >= 3 && b.length >= 3;
   }, [title, body]);
 
-  async function loadFirst() {
-    try {
-      setErr("");
-      setLoading(true);
-      const r = await apiGet("/api/forum/topics?limit=20");
-      if (!r?.ok) throw new Error(r?.error || "Falha ao carregar tópicos");
+  async function loadFirst(force = false) {
+    setErr("");
 
-      setRows(r.rows || []);
-      setCursor(r.nextCursor || null);
-    } catch (e) {
-      setErr(e?.message || "Erro");
-    } finally {
+    // se quiser, dá pra evitar reload se já tiver rows, mas aqui prefiro consistência
+    setLoading(true);
+
+    const r = await apiGet("/api/forum/topics?limit=20", { auth: true });
+
+    if (!r?.ok) {
+      setErr(r?.error || "Falha ao carregar tópicos");
       setLoading(false);
+      return;
     }
+
+    // ✅ FIX: apiGet retorna em r.data
+    setRows(r.data?.rows || []);
+    setCursor(r.data?.nextCursor || null);
+    setLoading(false);
   }
 
   async function loadMore() {
     if (!cursor) return;
-    try {
-      setErr("");
-      setLoadingMore(true);
 
-      const r = await apiGet(`/api/forum/topics?limit=20&cursor=${encodeURIComponent(cursor)}`);
-      if (!r?.ok) throw new Error(r?.error || "Falha ao carregar mais");
+    setErr("");
+    setLoadingMore(true);
 
-      setRows((prev) => [...prev, ...(r.rows || [])]);
-      setCursor(r.nextCursor || null);
-    } catch (e) {
-      setErr(e?.message || "Erro");
-    } finally {
-      setLoadingMore(false);
+    const r = await apiGet(`/api/forum/topics?limit=20&cursor=${encodeURIComponent(cursor)}`, {
+      auth: true,
+    });
+
+    setLoadingMore(false);
+
+    if (!r?.ok) {
+      setErr(r?.error || "Falha ao carregar mais");
+      return;
     }
+
+    // ✅ FIX: r.data
+    setRows((prev) => [...prev, ...(r.data?.rows || [])]);
+    setCursor(r.data?.nextCursor || null);
   }
 
   async function createTopic() {
     setCreating(true);
     setErr("");
 
-    try {
-      const tagsArr = tags
-        .split(",")
-        .map((x) => x.trim())
-        .filter(Boolean)
-        .slice(0, 6);
+    const tagsArr = tags
+      .split(",")
+      .map((x) => x.trim())
+      .filter(Boolean)
+      .slice(0, 6);
 
-      const r = await apiFetch("/api/forum/topics", {
-        method: "POST",
-        auth: true,
-        body: { title: title.trim(), body: body.trim(), tags: tagsArr },
-      });
+    const r = await apiFetch("/api/forum/topics", {
+      method: "POST",
+      auth: true,
+      body: { title: title.trim(), body: body.trim(), tags: tagsArr },
+    });
 
-      if (!r?.ok) throw new Error(r?.error || "Falha ao criar tópico");
+    setCreating(false);
 
-      // limpa form e recarrega lista
-      setTitle("");
-      setBody("");
-      setTags("");
-      await loadFirst();
-    } catch (e) {
-      setErr(e?.message || "Erro");
-    } finally {
-      setCreating(false);
+    if (!r?.ok) {
+      setErr(r?.error || "Falha ao criar tópico");
+      return;
     }
+
+    // limpa form e recarrega lista
+    setTitle("");
+    setBody("");
+    setTags("");
+    await loadFirst(true);
   }
 
   useEffect(() => {
-    let alive = true;
-    (async () => {
-      if (!alive) return;
-      await loadFirst();
-    })();
-    return () => {
-      alive = false;
-    };
+    loadFirst(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
     <AuthGate>
-      <div style={{ maxWidth: 980, margin: "0 auto", padding: "32px 18px", color: "white" }}>
-        <h1 style={{ fontSize: 34, marginBottom: 6 }}>Comunidade</h1>
-        <div style={{ opacity: 0.8, marginBottom: 18 }}>
-          Tópicos do Reino — peça ajuda, compartilhe conquistas e ideias.
-        </div>
-
+      <GVQShell
+        title="Comunidade"
+        subtitle="Tópicos do Reino — peça ajuda, compartilhe conquistas e ideias."
+        right={
+          <Button onClick={() => loadFirst(true)} variant="ghost" disabled={loading || creating}>
+            🔄 Atualizar
+          </Button>
+        }
+      >
         {/* Criar tópico */}
         <div
           style={{
@@ -201,105 +263,50 @@ export default function ForumPage() {
         >
           <div style={{ fontWeight: 900, marginBottom: 10 }}>Criar novo tópico</div>
 
-          <input
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="Título do tópico"
-            style={{
-              width: "100%",
-              padding: 12,
-              borderRadius: 12,
-              border: "1px solid rgba(255,255,255,0.12)",
-              background: "rgba(255,255,255,0.04)",
-              color: "white",
-              outline: "none",
-              marginBottom: 10,
-            }}
-          />
+          <div style={{ display: "grid", gap: 10 }}>
+            <Input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="Título do tópico"
+              disabled={creating}
+            />
 
-          <textarea
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
-            placeholder="Escreva seu tópico..."
-            rows={5}
-            style={{
-              width: "100%",
-              padding: 12,
-              borderRadius: 12,
-              border: "1px solid rgba(255,255,255,0.12)",
-              background: "rgba(255,255,255,0.04)",
-              color: "white",
-              outline: "none",
-              marginBottom: 10,
-              resize: "vertical",
-            }}
-          />
+            <Textarea
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              placeholder="Escreva seu tópico..."
+              rows={5}
+              disabled={creating}
+            />
 
-          <input
-            value={tags}
-            onChange={(e) => setTags(e.target.value)}
-            placeholder="Tags (opcional): ex. arco, postura, staccato"
-            style={{
-              width: "100%",
-              padding: 12,
-              borderRadius: 12,
-              border: "1px solid rgba(255,255,255,0.12)",
-              background: "rgba(255,255,255,0.04)",
-              color: "white",
-              outline: "none",
-              marginBottom: 12,
-            }}
-          />
+            <Input
+              value={tags}
+              onChange={(e) => setTags(e.target.value)}
+              placeholder="Tags (opcional): ex. arco, postura, staccato"
+              disabled={creating}
+            />
 
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            <button
-              onClick={createTopic}
-              disabled={!canSubmit || creating}
-              style={{
-                padding: "10px 14px",
-                borderRadius: 12,
-                border: "1px solid rgba(255,255,255,0.12)",
-                background: "rgba(255,255,255,0.10)",
-                color: "white",
-                cursor: "pointer",
-                opacity: !canSubmit || creating ? 0.6 : 1,
-              }}
-            >
-              {creating ? "Criando..." : "Publicar tópico"}
-            </button>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <Button onClick={createTopic} disabled={!canSubmit || creating} variant="solid">
+                {creating ? "Publicando..." : "Publicar tópico"}
+              </Button>
 
-            <button
-              onClick={loadFirst}
-              style={{
-                padding: "10px 14px",
-                borderRadius: 12,
-                border: "1px solid rgba(255,255,255,0.12)",
-                background: "rgba(255,255,255,0.06)",
-                color: "white",
-                cursor: "pointer",
-              }}
-            >
-              🔄 Atualizar
-            </button>
+              <Button onClick={() => loadFirst(true)} disabled={loading || creating} variant="ghost">
+                🔄 Atualizar lista
+              </Button>
+            </div>
           </div>
         </div>
 
-        {loading ? <div style={{ opacity: 0.8 }}>Carregando tópicos...</div> : null}
+        {loading ? <LoadingDots label="Invocando os tópicos" /> : null}
 
         {err ? (
-          <div
-            style={{
-              border: "1px solid rgba(255,80,80,0.35)",
-              padding: 12,
-              borderRadius: 12,
-              marginBottom: 12,
-            }}
-          >
+          <div style={{ border: "1px solid rgba(255,80,80,0.35)", padding: 12, borderRadius: 12 }}>
             ❌ {err}
           </div>
         ) : null}
 
-        {!loading ? (
+        {!loading && !err ? (
           <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 12 }}>
             {(rows || []).map((t) => (
               <TopicCard key={t.id} t={t} />
@@ -309,29 +316,21 @@ export default function ForumPage() {
 
         {!loading && cursor ? (
           <div style={{ marginTop: 14 }}>
-            <button
+            <Button
               onClick={loadMore}
               disabled={loadingMore}
-              style={{
-                width: "100%",
-                padding: 12,
-                borderRadius: 12,
-                border: "1px solid rgba(255,255,255,0.12)",
-                background: "rgba(255,255,255,0.06)",
-                color: "white",
-                cursor: "pointer",
-                opacity: loadingMore ? 0.7 : 1,
-              }}
+              variant="ghost"
+              style={{ width: "100%" }}
             >
               {loadingMore ? "Carregando..." : "Carregar mais"}
-            </button>
+            </Button>
           </div>
         ) : null}
 
         {!loading && !cursor && (rows?.length || 0) > 0 ? (
           <div style={{ marginTop: 14, opacity: 0.7, fontSize: 12 }}>Fim da lista.</div>
         ) : null}
-      </div>
+      </GVQShell>
     </AuthGate>
   );
 }

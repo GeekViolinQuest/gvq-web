@@ -7,6 +7,7 @@ export function getToken() {
 
 export function setToken(token) {
   if (typeof window === "undefined") return;
+  if (!token) return;
   localStorage.setItem("gvq_token", token);
 }
 
@@ -55,6 +56,11 @@ export async function apiFetch(
     });
 
     const data = await res.json().catch(() => ({}));
+
+    // ✅ se token expirou / inválido, limpa pra evitar “travamento”
+    if (auth && res.status === 401) {
+      clearToken();
+    }
 
     if (!res.ok) {
       return {

@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import GVQShell from "@/components/GVQShell";
 import LoadingDots from "@/components/LoadingDots";
-import { apiPost, setToken } from "@/lib/api";
+import { apiPost, getToken, setToken } from "@/lib/api";
 
 function Card({ children }) {
   return (
@@ -72,6 +72,12 @@ export default function LoginPage() {
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
+  // ✅ Se já tiver token salvo, não deixa ficar no login
+  useEffect(() => {
+    const t = getToken();
+    if (t) router.replace("/dashboard");
+  }, [router]);
+
   async function requestOtp() {
     const cleanEmail = email.trim().toLowerCase();
     if (!cleanEmail) return setMessage("Digite seu e-mail.");
@@ -103,11 +109,7 @@ export default function LoginPage() {
     setLoading(true);
     setMessage("");
 
-    const r = await apiPost(
-      "/api/auth/verify-otp",
-      { email: cleanEmail, code: cleanCode },
-      { auth: false }
-    );
+    const r = await apiPost("/api/auth/verify-otp", { email: cleanEmail, code: cleanCode }, { auth: false });
 
     setLoading(false);
 
@@ -127,10 +129,7 @@ export default function LoginPage() {
   }
 
   return (
-    <GVQShell
-      title="GVQ — Portal de Entrada"
-      subtitle="Acesso por código mágico (OTP)"
-    >
+    <GVQShell title="GVQ — Portal de Entrada" subtitle="Acesso por código mágico (OTP)">
       <div style={{ maxWidth: 520 }}>
         <Card>
           <div style={{ fontWeight: 900, marginBottom: 10, opacity: 0.9 }}>
@@ -208,7 +207,8 @@ export default function LoginPage() {
         </Card>
 
         <div style={{ marginTop: 14, opacity: 0.7, fontSize: 12, lineHeight: 1.4 }}>
-          Dica: se o e-mail não chegar, olhe a aba de spam / promoções.  
+          Dica: se o e-mail não chegar, olhe a aba de spam / promoções.
+          <br />
           Se o código expirar, reenvie.
         </div>
       </div>

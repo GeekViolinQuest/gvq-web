@@ -1,53 +1,61 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { getToken, clearToken, apiGet } from "@/lib/api";
-import LoadingDots from "@/components/LoadingDots";
+import { usePathname, useRouter } from "next/navigation";
+import { apiGet, clearToken, getToken } from "@/lib/api";
 
 export default function AuthGate({ children }) {
   const router = useRouter();
+  const pathname = usePathname();
+
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
     let alive = true;
 
-    (async () => {
+    async function run() {
       const token = getToken();
 
+      // Sem token => login
       if (!token) {
         clearToken();
-        router.replace("/login");
+        if (pathname !== "/login") router.replace("/login");
         return;
       }
 
-      // valida token com /me (evita loops de páginas sem dados)
+      // ✅ Opcional (recomendado): valida rapidamente se token ainda é aceito
+      // Se quiser MUITO leve, você pode comentar esse bloco e fica só pelo localStorage.
       const r = await apiGet("/api/user/me", { auth: true });
 
       if (!alive) return;
 
       if (!r.ok) {
-        // 401/403: token inválido/expirado
+        // 401/403/etc => limpa e volta pro login
         clearToken();
-        router.replace("/login");
+        if (pathname !== "/login") router.replace("/login");
         return;
       }
 
       setReady(true);
-    })();
+    }
+
+    run();
+
+    // Se você fizer logout em outra aba, essa aba acompanha
+    function onStorage(e) {
+      if (e.key === "gvq_token" && !e.newValue) {
+        if (pathname !== "/login") router.replace("/login");
+      }
+    }
+
+    window.addEventListener("storage", onStorage);
 
     return () => {
       alive = false;
+      window.removeEventListener("storage", onStorage);
     };
-  }, [router]);
+  }, [router, pathname]);
 
-  if (!ready) {
-    return (
-      <div style={{ padding: 32, color: "white" }}>
-        <LoadingDots label="Abrindo o Portal" />
-      </div>
-    );
-  }
-
+  if (!ready) return null;
   return children;
 }

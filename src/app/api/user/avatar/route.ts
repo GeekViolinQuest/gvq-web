@@ -2,9 +2,21 @@
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
+// garante runtime node (evita limitações chatas de edge em alguns deploys)
+export const runtime = "nodejs";
 
 function getApiBase() {
-  return (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
+  // ✅ use primeiro API_URL (server-only), e cai pra NEXT_PUBLIC_API_URL se precisar
+  const v = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || "";
+  return v.replace(/\/$/, "");
+}
+
+function isHttpUrl(v: string) {
+  return /^https?:\/\/.+/i.test(v);
+}
+
+function isDataImageUrl(v: string) {
+  return /^data:image\/(png|jpeg|jpg|webp|gif);base64,/i.test(v);
 }
 
 export async function POST(req: Request) {
@@ -17,9 +29,12 @@ export async function POST(req: Request) {
     const body = await req.json().catch(() => ({}));
     const avatarUrl = String(body?.avatarUrl || "").trim();
 
-    // valida URL simples
-    if (avatarUrl && !/^https?:\/\/.+/i.test(avatarUrl)) {
-      return NextResponse.json({ ok: false, error: "invalid_url" }, { status: 400 });
+    // ✅ valida URL ou DataURL (base64)
+    if (avatarUrl && !isHttpUrl(avatarUrl) && !isDataImageUrl(avatarUrl)) {
+      return NextResponse.json(
+        { ok: false, error: "Formato inválido (use URL https ou arquivo pequeno)." },
+        { status: 400 }
+      );
     }
 
     const apiBase = getApiBase();
@@ -27,7 +42,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: false, error: "missing_api_base" }, { status: 500 });
     }
 
-    // Ajuste o path abaixo para bater com sua rota no Express
     const upstream = await fetch(`${apiBase}/api/user/avatar`, {
       method: "POST",
       headers: {
@@ -40,7 +54,7 @@ export async function POST(req: Request) {
 
     const data = await upstream.json().catch(() => ({}));
     return NextResponse.json(data, { status: upstream.status });
-  } catch (e: any) {
+  } catch (e) {
     return NextResponse.json({ ok: false, error: "server_error" }, { status: 500 });
   }
 }
