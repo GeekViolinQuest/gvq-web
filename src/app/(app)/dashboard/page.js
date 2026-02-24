@@ -85,7 +85,7 @@ export default function DashboardPage() {
   return (
     <AuthGate>
       <GVQShell
-        title="Dashboard"
+        title="Taverna do Guardião"
         subtitle={`${displayName} · ${email}`}
         right={
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
