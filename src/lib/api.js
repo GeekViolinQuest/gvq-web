@@ -26,8 +26,9 @@ function getBase() {
 function rewritePathForProxy(path) {
   // quando base=="" (modo proxy), qualquer /api/... vira /api/_proxy/...
   if (path.startsWith("/api/_proxy/")) return path;
-  if (path.startsWith("/api/")) return path.replace(/^\/api\//, "/api/_proxy/");
-  return path;
+  if (path.startsWith("/api/")) return `/api/_proxy${path}`;
+  if (path.startsWith("/")) return `/api/_proxy${path}`;
+  return `/api/_proxy/${path}`;
 }
 
 function joinUrl(base, path) {

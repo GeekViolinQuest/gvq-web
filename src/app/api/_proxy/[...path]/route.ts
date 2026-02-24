@@ -19,7 +19,7 @@ async function handler(req: Request, ctx: { params: { path: string[] } }) {
 
   const path = (ctx.params?.path || []).join("/");
   const url = new URL(req.url);
-  const target = `${API_URL}/api/${path}${url.search || ""}`;
+  const target = `${API_URL}/${path}${url.search || ""}`;
 
   const headers = new Headers(req.headers);
   headers.delete("host");
