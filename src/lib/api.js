@@ -17,7 +17,10 @@ export function clearToken() {
 }
 
 function getBase() {
-  return (process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
+  // se NEXT_PUBLIC_API_URL existir, usa (útil no dev).
+  // se não existir, usa "" e chama o /api do próprio site.
+  const b = (process.env.NEXT_PUBLIC_API_URL || "").trim().replace(/\/$/, "");
+  return b;
 }
 
 function joinUrl(base, path) {

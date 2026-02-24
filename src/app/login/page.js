@@ -104,28 +104,41 @@ export default function LoginPage() {
       setStep("email");
       return;
     }
-    if (cleanCode.length !== 6) return setMessage("Digite o código de 6 dígitos.");
+
+    if (cleanCode.length !== 6) {
+      return setMessage("Digite o código de 6 dígitos.");
+    }
 
     setLoading(true);
     setMessage("");
 
-    const r = await apiPost("/api/auth/verify-otp", { email: cleanEmail, code: cleanCode }, { auth: false });
+    const r = await apiPost(
+      "/api/auth/verify-otp",
+      { email: cleanEmail, code: cleanCode },
+      { auth: false }
+    );
+
+    console.log("VERIFY RESPONSE:", r); // 👈 DEBUG
 
     setLoading(false);
 
-    if (!r.ok) return setMessage(r.error || "Código inválido.");
+    if (!r.ok) {
+      return setMessage(r.error || "Código inválido.");
+    }
 
-    const token = r.data?.token;
-    if (!token) return setMessage("Token não retornou. Tente novamente.");
+    // 🔥 Aqui está o ajuste robusto
+    const token =
+      r.token ||
+      r.data?.token ||
+      r.data?.data?.token ||
+      null;
+
+    if (!token) {
+      return setMessage("Token não retornou. Tente novamente.");
+    }
 
     setToken(token);
     router.replace("/dashboard");
-  }
-
-  function reset() {
-    setCode("");
-    setStep("email");
-    setMessage("");
   }
 
   return (
