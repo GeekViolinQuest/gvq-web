@@ -79,9 +79,11 @@ export default function AdminEpicPage() {
       setMsg("");
       setLoading(true);
 
-      const r = await apiGet("/api/admin/epic/events?limit=200", { auth: true });
-      if (!r?.ok) throw new Error(r?.error || "Falha ao carregar eventos");
-      setRows(r.rows || []);
+      const r = await apiGet("/api/admin/epic/events?limit=200");
+      if (!r?.ok) throw new Error(r?.error || "Falha ao carregar");
+
+      const list = r.data?.rows || r.data?.events || []
+      setRows(list);
     } catch (e) {
       setErr(e?.message || "Erro");
       setRows([]);

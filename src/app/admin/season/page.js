@@ -20,13 +20,14 @@ function Card({ children }) {
   );
 }
 
-function Input({ value, onChange, placeholder, type = "text" }) {
+function Input({ value, onChange, placeholder, type = "text", disabled }) {
   return (
     <input
       value={value}
       onChange={onChange}
       placeholder={placeholder}
       type={type}
+      disabled={disabled}
       style={{
         width: "100%",
         padding: 12,
@@ -35,6 +36,7 @@ function Input({ value, onChange, placeholder, type = "text" }) {
         background: "rgba(255,255,255,0.04)",
         color: "white",
         outline: "none",
+        opacity: disabled ? 0.65 : 1,
       }}
     />
   );
@@ -61,6 +63,7 @@ function Button({ children, onClick, disabled, variant = "primary", title }) {
         color: "white",
         cursor: disabled ? "not-allowed" : "pointer",
         opacity: disabled ? 0.6 : 1,
+        fontWeight: 900,
       }}
     >
       {children}
@@ -94,6 +97,25 @@ function fmt(dt) {
   }
 }
 
+// Sugestão de KEY a partir das datas (ex: 2026-S1)
+function suggestKey(startsAt) {
+  if (!startsAt) return "";
+  const d = new Date(startsAt);
+  if (isNaN(d.getTime())) return "";
+  const year = d.getFullYear();
+  const month = d.getMonth() + 1;
+  const s = month <= 6 ? "S1" : "S2";
+  return `${year}-${s}`;
+}
+
+// Normaliza para o padrão aceito pelo backend: [A-Z0-9._-] sem espaços
+function normalizeKeyClient(raw) {
+  return String(raw || "")
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, "");
+}
+
 export default function AdminSeasonPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -103,18 +125,26 @@ export default function AdminSeasonPage() {
   const [rows, setRows] = useState([]);
 
   // create form
-  const [name, setName] = useState("");
+  const [key, setKey] = useState(""); // ✅ obrigatório no backend
   const [startsAt, setStartsAt] = useState("");
   const [endsAt, setEndsAt] = useState("");
   const [createActive, setCreateActive] = useState(false);
 
   const canCreate = useMemo(() => {
+    const k = normalizeKeyClient(key);
+    if (!k) return false;
+
     if (!startsAt || !endsAt) return false;
     const s = new Date(startsAt);
     const e = new Date(endsAt);
     if (isNaN(s.getTime()) || isNaN(e.getTime())) return false;
-    return e > s;
-  }, [startsAt, endsAt]);
+    if (!(e > s)) return false;
+
+    // valida chars no front pra evitar ida e volta
+    if (!/^[A-Z0-9._-]+$/.test(k)) return false;
+
+    return true;
+  }, [key, startsAt, endsAt]);
 
   async function load() {
     setLoading(true);
@@ -123,7 +153,7 @@ export default function AdminSeasonPage() {
     try {
       const r = await apiGet("/api/admin/season");
       if (!r?.ok) throw new Error(r?.error || "Falha ao carregar temporadas");
-      setRows(r.rows || []);
+      setRows(r.data?.rows || []); // ✅ corrigido
     } catch (e) {
       setRows([]);
       setErr(e?.message || "Erro");
@@ -136,24 +166,38 @@ export default function AdminSeasonPage() {
     load();
   }, []);
 
+  // Auto-sugere KEY quando você escolhe a data (sem sobrescrever se você já digitou)
+  useEffect(() => {
+    if (!key.trim() && startsAt) {
+      const sk = suggestKey(startsAt);
+      if (sk) setKey(sk);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startsAt]);
+
   async function createSeason() {
     setSaving(true);
     setErr("");
     setMsg("");
+
     try {
+      const cleanKey = normalizeKeyClient(key);
+
       const r = await apiFetch("/api/admin/season", {
         method: "POST",
         auth: true,
         body: {
-          name: name.trim() || undefined,
+          key: cleanKey, // ✅ obrigatório
           startsAt,
           endsAt,
           isActive: !!createActive,
         },
       });
+
       if (!r?.ok) throw new Error(r?.error || "Falha ao criar");
+
       setMsg("✅ Temporada criada!");
-      setName("");
+      setKey("");
       setStartsAt("");
       setEndsAt("");
       setCreateActive(false);
@@ -272,7 +316,7 @@ export default function AdminSeasonPage() {
 
         <div style={{ marginTop: 14, display: "flex", gap: 10, flexWrap: "wrap" }}>
           <Pill>Total: {rows.length}</Pill>
-          <Pill>Ativa: {active ? active.name || active.id : "—"}</Pill>
+          <Pill>Ativa: {active ? active.key : "—"}</Pill>
         </div>
 
         {msg ? <div style={{ marginTop: 14, color: "#9ae6b4" }}>{msg}</div> : null}
@@ -285,28 +329,31 @@ export default function AdminSeasonPage() {
 
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
               <div>
-                <div style={{ fontSize: 12, opacity: 0.8, marginBottom: 6 }}>Nome (opcional)</div>
-                <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="ex: Season 2026 — Semestre 1" />
+                <div style={{ fontSize: 12, opacity: 0.8, marginBottom: 6 }}>KEY (obrigatória)</div>
+                <Input
+                  value={key}
+                  onChange={(e) => setKey(e.target.value)}
+                  placeholder="ex: 2026-S1"
+                />
+                <div style={{ fontSize: 11, opacity: 0.65, marginTop: 6 }}>
+                  Regras: A-Z, 0-9, -, _, . (sem espaços)
+                </div>
               </div>
 
               <div>
                 <div style={{ fontSize: 12, opacity: 0.8, marginBottom: 6 }}>Início</div>
-                <Input value={startsAt} onChange={(e) => setStartsAt(e.target.value)} type="datetime-local" placeholder="" />
+                <Input value={startsAt} onChange={(e) => setStartsAt(e.target.value)} type="datetime-local" />
               </div>
 
               <div>
                 <div style={{ fontSize: 12, opacity: 0.8, marginBottom: 6 }}>Fim</div>
-                <Input value={endsAt} onChange={(e) => setEndsAt(e.target.value)} type="datetime-local" placeholder="" />
+                <Input value={endsAt} onChange={(e) => setEndsAt(e.target.value)} type="datetime-local" />
               </div>
             </div>
 
             <div style={{ display: "flex", gap: 10, marginTop: 12, alignItems: "center", flexWrap: "wrap" }}>
               <label style={{ display: "flex", gap: 8, alignItems: "center", opacity: 0.9, fontSize: 13 }}>
-                <input
-                  type="checkbox"
-                  checked={createActive}
-                  onChange={(e) => setCreateActive(e.target.checked)}
-                />
+                <input type="checkbox" checked={createActive} onChange={(e) => setCreateActive(e.target.checked)} />
                 Criar já como ativa (desativa outras)
               </label>
 
@@ -320,7 +367,7 @@ export default function AdminSeasonPage() {
 
               {!canCreate ? (
                 <div style={{ fontSize: 12, opacity: 0.75 }}>
-                  (Dica: fim precisa ser maior que início.)
+                  (Dica: key válida + fim maior que início.)
                 </div>
               ) : null}
             </div>
@@ -345,14 +392,14 @@ export default function AdminSeasonPage() {
                 <div
                   style={{
                     display: "grid",
-                    gridTemplateColumns: "220px 220px 100px 220px 1fr",
+                    gridTemplateColumns: "220px 260px 100px 220px 1fr",
                     padding: 12,
                     opacity: 0.85,
                     background: "rgba(255,255,255,0.04)",
                     fontSize: 12,
                   }}
                 >
-                  <div>Nome</div>
+                  <div>Key</div>
                   <div>Janela</div>
                   <div>Status</div>
                   <div>Primeiro Estelar</div>
@@ -367,7 +414,7 @@ export default function AdminSeasonPage() {
                       key={s.id}
                       style={{
                         display: "grid",
-                        gridTemplateColumns: "220px 220px 100px 220px 1fr",
+                        gridTemplateColumns: "220px 260px 100px 220px 1fr",
                         padding: 12,
                         borderTop: "1px solid rgba(255,255,255,0.08)",
                         alignItems: "center",
@@ -375,7 +422,7 @@ export default function AdminSeasonPage() {
                       }}
                     >
                       <div style={{ fontSize: 13, opacity: 0.95, overflow: "hidden", textOverflow: "ellipsis" }}>
-                        {s.name || "—"}
+                        <div style={{ fontWeight: 900 }}>{s.key}</div>
                         <div style={{ fontSize: 11, opacity: 0.6 }}>id: {s.id}</div>
                       </div>
 
@@ -384,9 +431,7 @@ export default function AdminSeasonPage() {
                         <div>Fim: {fmt(s.endsAt)}</div>
                       </div>
 
-                      <div style={{ fontSize: 12, opacity: 0.9 }}>
-                        {s.isActive ? "✅ ativa" : "⚪ inativa"}
-                      </div>
+                      <div style={{ fontSize: 12, opacity: 0.9 }}>{s.isActive ? "✅ ativa" : "⚪ inativa"}</div>
 
                       <div style={{ fontSize: 12, opacity: 0.9 }}>
                         {s.firstEstelarUserId ? (
