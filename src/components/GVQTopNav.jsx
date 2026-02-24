@@ -1,13 +1,33 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import { apiGet } from "@/lib/api";
 
 function isActivePath(pathname, href) {
   if (!pathname) return false;
   if (href === "/dashboard") return pathname === "/dashboard" || pathname === "/";
   return pathname === href || pathname.startsWith(href + "/");
+}
+
+function Pill({ children, title }) {
+  return (
+    <span
+      title={title}
+      style={{
+        fontSize: 12,
+        padding: "6px 10px",
+        borderRadius: 999,
+        border: "1px solid rgba(255,255,255,0.12)",
+        background: "rgba(255,255,255,0.04)",
+        opacity: 0.95,
+        whiteSpace: "nowrap",
+      }}
+    >
+      {children}
+    </span>
+  );
 }
 
 function NavItem({ href, icon, label, onClick }) {
@@ -31,7 +51,6 @@ function NavItem({ href, icon, label, onClick }) {
         fontSize: 14,
         fontWeight: active ? 900 : 700,
         letterSpacing: 0.2,
-        boxShadow: active ? "0 0 0 1px rgba(255,255,255,0.08) inset" : "none",
       }}
     >
       <span style={{ opacity: 0.95 }}>{icon}</span>
@@ -41,16 +60,11 @@ function NavItem({ href, icon, label, onClick }) {
 }
 
 export default function GVQTopNav() {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
 
-  // fecha menu ao navegar (só pra não ficar aberto)
-  useEffect(() => {
-    const onResize = () => {
-      if (window.innerWidth > 860) setOpen(false);
-    };
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, []);
+  const [me, setMe] = useState(null); // {displayName,email,role, cristaisSonoros, nivel}
+  const [meErr, setMeErr] = useState("");
 
   const items = useMemo(
     () => [
@@ -64,6 +78,43 @@ export default function GVQTopNav() {
     []
   );
 
+  const isGM = me?.role === "gm" || me?.role === "admin";
+
+  async function loadMe(signal) {
+    try {
+      setMeErr("");
+      const r = await apiGet("/api/me", { signal, auth: true });
+      if (!r?.ok) throw new Error(r?.error || "Falha ao carregar perfil");
+      setMe(r.me || null);
+    } catch (e) {
+      if (e?.name === "AbortError") return;
+      // Não derruba a UI — só não mostra HUD
+      setMe(null);
+      setMeErr(e?.message || "Erro");
+    }
+  }
+
+  useEffect(() => {
+    const ac = new AbortController();
+    loadMe(ac.signal);
+    return () => ac.abort();
+  }, []);
+
+  useEffect(() => {
+    const onResize = () => {
+      if (window.innerWidth > 860) setOpen(false);
+    };
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  function logout() {
+    try {
+      localStorage.removeItem("gvq_token");
+    } catch {}
+    router.push("/login");
+  }
+
   return (
     <>
       <div
@@ -76,7 +127,6 @@ export default function GVQTopNav() {
           backdropFilter: "blur(10px)",
         }}
       >
-        {/* brilho Sonoralis */}
         <div
           style={{
             height: 2,
@@ -125,38 +175,58 @@ export default function GVQTopNav() {
             {items.map((it) => (
               <NavItem key={it.href} href={it.href} icon={it.icon} label={it.label} />
             ))}
+            {isGM ? <NavItem href="/admin/dashboard" icon="🛡️" label="Admin" /> : null}
           </div>
 
-          {/* Mobile button */}
-          <button
-            className="gvqNavBurger"
-            onClick={() => setOpen((v) => !v)}
-            style={{
-              padding: "10px 12px",
-              borderRadius: 12,
-              border: "1px solid rgba(255,255,255,0.12)",
-              background: open ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.06)",
-              color: "white",
-              cursor: "pointer",
-              fontWeight: 900,
-              display: "none",
-            }}
-            aria-label="Abrir menu"
-          >
-            {open ? "✖" : "☰"}
-          </button>
+          {/* HUD + ações */}
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            {me?.displayName ? <Pill title="Seu nome">{me.displayName}</Pill> : null}
+
+            {typeof me?.cristaisSonoros === "number" ? (
+              <Pill title="Cristais Sonoros (Season)">
+                💎 {me.cristaisSonoros}
+              </Pill>
+            ) : null}
+
+            <button
+              onClick={logout}
+              style={{
+                padding: "10px 12px",
+                borderRadius: 12,
+                border: "1px solid rgba(255,255,255,0.12)",
+                background: "rgba(255,80,80,0.16)",
+                color: "white",
+                cursor: "pointer",
+                fontWeight: 900,
+              }}
+              title="Sair da conta"
+            >
+              Sair
+            </button>
+
+            {/* Mobile burger */}
+            <button
+              className="gvqNavBurger"
+              onClick={() => setOpen((v) => !v)}
+              style={{
+                padding: "10px 12px",
+                borderRadius: 12,
+                border: "1px solid rgba(255,255,255,0.12)",
+                background: open ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.06)",
+                color: "white",
+                cursor: "pointer",
+                fontWeight: 900,
+                display: "none",
+              }}
+              aria-label="Abrir menu"
+            >
+              {open ? "✖" : "☰"}
+            </button>
+          </div>
         </div>
 
-        {/* Mobile dropdown */}
         {open ? (
-          <div
-            className="gvqNavDropdown"
-            style={{
-              maxWidth: 1100,
-              margin: "0 auto",
-              padding: "0 18px 14px 18px",
-            }}
-          >
+          <div style={{ maxWidth: 1100, margin: "0 auto", padding: "0 18px 14px 18px" }}>
             <div
               style={{
                 border: "1px solid rgba(255,255,255,0.12)",
@@ -169,20 +239,20 @@ export default function GVQTopNav() {
               }}
             >
               {items.map((it) => (
-                <NavItem
-                  key={it.href}
-                  href={it.href}
-                  icon={it.icon}
-                  label={it.label}
-                  onClick={() => setOpen(false)}
-                />
+                <NavItem key={it.href} href={it.href} icon={it.icon} label={it.label} onClick={() => setOpen(false)} />
               ))}
+              {isGM ? <NavItem href="/admin/dashboard" icon="🛡️" label="Admin" onClick={() => setOpen(false)} /> : null}
             </div>
+
+            {meErr ? (
+              <div style={{ marginTop: 10, fontSize: 12, opacity: 0.7 }}>
+                (HUD indisponível: {meErr})
+              </div>
+            ) : null}
           </div>
         ) : null}
       </div>
 
-      {/* CSS responsivo (fácil) */}
       <style jsx global>{`
         @media (max-width: 860px) {
           .gvqNavDesktop {
@@ -192,11 +262,6 @@ export default function GVQTopNav() {
             display: inline-flex !important;
             align-items: center;
             justify-content: center;
-          }
-        }
-        @media (max-width: 520px) {
-          .gvqNavLabel {
-            display: inline;
           }
         }
       `}</style>

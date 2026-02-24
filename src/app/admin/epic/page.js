@@ -82,7 +82,7 @@ export default function AdminEpicPage() {
       const r = await apiGet("/api/admin/epic/events?limit=200");
       if (!r?.ok) throw new Error(r?.error || "Falha ao carregar");
 
-      const list = r.data?.rows || r.data?.events || []
+      const list = r.rows || r.events || [];
       setRows(list);
     } catch (e) {
       setErr(e?.message || "Erro");

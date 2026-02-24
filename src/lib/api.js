@@ -30,8 +30,11 @@ function joinUrl(base, path) {
 /**
  * Padrão A (site inteiro):
  * - NUNCA lança throw
- * - SEMPRE retorna:
- *   { ok: boolean, status: number, data: any, error?: string }
+ * - SEMPRE retorna um objeto com ok/status
+ *
+ * ✅ Agora: quando o backend devolve JSON, a gente "desembrulha":
+ *   - ok=true  => { ok:true, status, ...data }
+ *   - ok=false => { ok:false, status, error, ...data }
  */
 export async function apiFetch(
   path,
@@ -66,17 +69,20 @@ export async function apiFetch(
       return {
         ok: false,
         status: res.status,
-        data,
+        ...(data && typeof data === "object" ? data : {}),
         error: data?.error || `Erro HTTP ${res.status}`,
       };
     }
 
-    return { ok: true, status: res.status, data };
+    return {
+      ok: true,
+      status: res.status,
+      ...(data && typeof data === "object" ? data : { data }),
+    };
   } catch (e) {
     return {
       ok: false,
       status: 0,
-      data: null,
       error: e?.message || "Falha de rede",
     };
   }

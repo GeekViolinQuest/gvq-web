@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
-import AuthGate from "@/components/AuthGate";
 import GVQShell from "@/components/GVQShell";
 import { apiFetch } from "@/lib/api";
 import Link from "next/link";
@@ -212,83 +211,5 @@ export default function ResgatarPage() {
         <Button variant="ghost">👤 Ir para Perfil</Button>
       </Link>
     </div>
-  );
-
-  return (
-    <AuthGate>
-      <GVQShell title="Resgatar Código" subtitle="Digite o código da sua Runa ou Relíquia." right={right}>
-        <div style={{ maxWidth: 560 }}>
-          <Card>
-            <div style={{ fontWeight: 900, marginBottom: 10 }}>🔓 Resgate</div>
-
-            <form onSubmit={handleSubmit}>
-              <Input
-                placeholder="Ex: runa001, !runaorigem, reliquiapaz..."
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-              />
-
-              <div style={{ marginTop: 10, fontSize: 12, opacity: 0.8 }}>
-                Preview do código enviado:{" "}
-                <span style={{ opacity: 1, fontFamily: "monospace" }}>{cleanedPreview || "—"}</span>
-              </div>
-
-              <Button type="submit" disabled={!canSubmit} style={{ marginTop: 12, width: "100%" }}>
-                {loading ? "Resgatando..." : "Resgatar"}
-              </Button>
-            </form>
-
-            <div style={{ marginTop: 12, opacity: 0.75, fontSize: 12 }}>
-              Dica: você pode digitar sem “!” que eu completo automaticamente.
-            </div>
-
-            {message ? <div style={{ marginTop: 12, color: "#9ae6b4" }}>{message}</div> : null}
-
-            {error ? (
-              <div
-                style={{
-                  marginTop: 12,
-                  border: "1px solid rgba(255,80,80,0.35)",
-                  padding: 12,
-                  borderRadius: 12,
-                  color: "#feb2b2",
-                }}
-              >
-                ❌ {error}
-              </div>
-            ) : null}
-
-            {result?.ok ? (
-              <>
-                <RewardCard
-                  reward={result.reward}
-                  type={result.type}
-                  gainedLevel={result.gainedLevel}
-                  code={result.code}
-                />
-
-                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}>
-                  <Button variant="ghost" onClick={() => router.push("/perfil")} style={{ flex: 1, minWidth: 220 }}>
-                    Ver no Perfil agora →
-                  </Button>
-
-                  {!AUTO_REDIRECT ? (
-                    <Button variant="ghost" onClick={() => router.push("/dashboard")} style={{ flex: 1, minWidth: 220 }}>
-                      Voltar ao Dashboard →
-                    </Button>
-                  ) : null}
-                </div>
-
-                {AUTO_REDIRECT ? (
-                  <div style={{ marginTop: 10, opacity: 0.75, fontSize: 12 }}>
-                    Você será redirecionado ao Perfil em instantes…
-                  </div>
-                ) : null}
-              </>
-            ) : null}
-          </Card>
-        </div>
-      </GVQShell>
-    </AuthGate>
   );
 }
