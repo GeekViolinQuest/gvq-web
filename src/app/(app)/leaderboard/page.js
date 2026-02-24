@@ -6,7 +6,7 @@ import LoadingDots from "@/components/LoadingDots";
 import { apiGet } from "@/lib/api";
 import { useEffect, useMemo, useState } from "react";
 
-const AVATAR_PLACEHOLDER = "/avatar-placeholder.png"; // se não tiver, pode trocar por "/locked.png"
+const AVATAR_PLACEHOLDER = "/avatar-placeholder.png";
 
 function TabButton({ active, onClick, children }) {
   return (
@@ -87,8 +87,7 @@ function Top3({ rows, mode }) {
   const valueOf = (r) =>
     mode === "level" ? r.level : mode === "season" ? r.cristais : r.reliquiasCount;
 
-  const label =
-    mode === "level" ? "Nível" : mode === "season" ? "Cristais" : "Relíquias";
+  const label = mode === "level" ? "Nível" : mode === "season" ? "Cristais" : "Relíquias";
 
   return (
     <div
@@ -125,17 +124,13 @@ function Top3({ rows, mode }) {
                   lineHeight: 1.15,
                 }}
               >
-                <span style={{ wordBreak: "break-word" }}>
-                  {r.displayName || "Guardião"}
-                </span>
+                <span style={{ wordBreak: "break-word" }}>{r.displayName || "Guardião"}</span>
                 {mode === "season" ? <TierBadge row={r} /> : null}
               </div>
 
               <div style={{ opacity: 0.82, fontSize: 13, marginTop: 4 }}>
                 {label}: <span style={{ fontWeight: 1000 }}>{valueOf(r) ?? 0}</span>
-                {mode === "season" ? (
-                  <span style={{ opacity: 0.9 }}> • Nível {r.level ?? 0}</span>
-                ) : null}
+                {mode === "season" ? <span style={{ opacity: 0.9 }}> • Nível {r.level ?? 0}</span> : null}
               </div>
             </div>
           </div>
@@ -146,8 +141,7 @@ function Top3({ rows, mode }) {
 }
 
 function Table({ rows, mode }) {
-  const colLabel =
-    mode === "level" ? "Nível" : mode === "season" ? "Cristais" : "Relíquias";
+  const colLabel = mode === "level" ? "Nível" : mode === "season" ? "Cristais" : "Relíquias";
 
   const valueOf = (r) =>
     mode === "level" ? r.level : mode === "season" ? r.cristais : r.reliquiasCount;
@@ -202,9 +196,7 @@ function Table({ rows, mode }) {
                     minWidth: 0,
                   }}
                 >
-                  <span style={{ wordBreak: "break-word" }}>
-                    {r.displayName || "Guardião"}
-                  </span>
+                  <span style={{ wordBreak: "break-word" }}>{r.displayName || "Guardião"}</span>
                   {mode === "season" ? <TierBadge row={r} /> : null}
                 </div>
 
@@ -249,7 +241,8 @@ export default function LeaderboardPage() {
 
     setLoading(true);
 
-    const r = await apiGet(`/api/leaderboard/${tab}?limit=50&page=1`, { auth: true });
+    // ✅ chama o PROXY (não a rota local /api/leaderboard)
+    const r = await apiGet(`/api/_proxy/leaderboard/${tab}?limit=50&page=1`, { auth: true });
 
     if (!r.ok) {
       setErr(r.error || "Falha ao carregar ranking");
@@ -257,7 +250,10 @@ export default function LeaderboardPage() {
       return;
     }
 
-    setData((prev) => ({ ...prev, [tab]: r.data?.rows || [] }));
+    // ✅ seu apiFetch “espalha” o JSON no objeto → r.rows (não r.data.rows)
+    const rows = r.rows || r.data?.rows || [];
+
+    setData((prev) => ({ ...prev, [tab]: rows }));
     setLoading(false);
   }
 

@@ -17,31 +17,37 @@ export function clearToken() {
 }
 
 function getBase() {
-  // Se NEXT_PUBLIC_API_URL existir, usa (útil no dev / apontar para API remota).
-  // Se não existir, usa "" (mesma origem).
-  return (process.env.NEXT_PUBLIC_API_URL || "").trim().replace(/\/$/, "");
+  // ✅ Se existir NEXT_PUBLIC_API_URL, o front chama o backend direto (útil no dev).
+  // ✅ Se NÃO existir, o front chama o próprio site e o Next faz proxy via /api/_proxy.
+  const b = (process.env.NEXT_PUBLIC_API_URL || "").trim().replace(/\/$/, "");
+  return b; // pode ser "" (modo proxy)
+}
+
+function rewritePathForProxy(path) {
+  // quando base=="" (modo proxy), qualquer /api/... vira /api/_proxy/...
+  if (path.startsWith("/api/_proxy/")) return path;
+  if (path.startsWith("/api/")) return path.replace(/^\/api\//, "/api/_proxy/");
+  return path;
 }
 
 function joinUrl(base, path) {
-  if (!base) return path;
   if (path.startsWith("http")) return path;
-  if (!path.startsWith("/")) path = `/${path}`;
-  return `${base}${path}`;
-}
 
-function isNextInternalRoute(path) {
-  // Rotas internas do Next (app router) devem SEMPRE ir para a mesma origem.
-  // Isso evita bug onde NEXT_PUBLIC_API_URL manda "/api/..." pro backend.
-  return typeof path === "string" && path.startsWith("/api/");
+  if (!path.startsWith("/")) path = `/${path}`;
+
+  if (!base) {
+    // modo proxy do Next
+    return rewritePathForProxy(path);
+  }
+
+  // modo direto para o backend
+  return `${base}${path}`;
 }
 
 /**
  * Padrão A (site inteiro):
  * - NUNCA lança throw
  * - SEMPRE retorna um objeto com ok/status
- *
- * ok=true  => { ok:true, status, ...data }
- * ok=false => { ok:false, status, error, ...data }
  */
 export async function apiFetch(
   path,
@@ -55,8 +61,7 @@ export async function apiFetch(
     if (token) headers.set("Authorization", `Bearer ${token}`);
   }
 
-  const base = getBase();
-  const url = isNextInternalRoute(path) ? path : joinUrl(base, path);
+  const url = joinUrl(getBase(), path);
 
   try {
     const res = await fetch(url, {
@@ -68,10 +73,7 @@ export async function apiFetch(
 
     const data = await res.json().catch(() => ({}));
 
-    // Token expirado/ inválido
-    if (auth && res.status === 401) {
-      clearToken();
-    }
+    if (auth && res.status === 401) clearToken();
 
     if (!res.ok) {
       return {
@@ -96,7 +98,6 @@ export async function apiFetch(
   }
 }
 
-// helpers práticos
 export function apiGet(path, { auth = true } = {}) {
   return apiFetch(path, { method: "GET", auth });
 }
