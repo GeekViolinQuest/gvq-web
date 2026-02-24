@@ -17,10 +17,9 @@ export function clearToken() {
 }
 
 function getBase() {
-  // se NEXT_PUBLIC_API_URL existir, usa (útil no dev).
-  // se não existir, usa "" e chama o /api do próprio site.
-  const b = (process.env.NEXT_PUBLIC_API_URL || "").trim().replace(/\/$/, "");
-  return b;
+  // Se NEXT_PUBLIC_API_URL existir, usa (útil no dev / apontar para API remota).
+  // Se não existir, usa "" (mesma origem).
+  return (process.env.NEXT_PUBLIC_API_URL || "").trim().replace(/\/$/, "");
 }
 
 function joinUrl(base, path) {
@@ -30,14 +29,19 @@ function joinUrl(base, path) {
   return `${base}${path}`;
 }
 
+function isNextInternalRoute(path) {
+  // Rotas internas do Next (app router) devem SEMPRE ir para a mesma origem.
+  // Isso evita bug onde NEXT_PUBLIC_API_URL manda "/api/..." pro backend.
+  return typeof path === "string" && path.startsWith("/api/");
+}
+
 /**
  * Padrão A (site inteiro):
  * - NUNCA lança throw
  * - SEMPRE retorna um objeto com ok/status
  *
- * ✅ Agora: quando o backend devolve JSON, a gente "desembrulha":
- *   - ok=true  => { ok:true, status, ...data }
- *   - ok=false => { ok:false, status, error, ...data }
+ * ok=true  => { ok:true, status, ...data }
+ * ok=false => { ok:false, status, error, ...data }
  */
 export async function apiFetch(
   path,
@@ -51,7 +55,8 @@ export async function apiFetch(
     if (token) headers.set("Authorization", `Bearer ${token}`);
   }
 
-  const url = joinUrl(getBase(), path);
+  const base = getBase();
+  const url = isNextInternalRoute(path) ? path : joinUrl(base, path);
 
   try {
     const res = await fetch(url, {
@@ -63,7 +68,7 @@ export async function apiFetch(
 
     const data = await res.json().catch(() => ({}));
 
-    // ✅ se token expirou / inválido, limpa pra evitar “travamento”
+    // Token expirado/ inválido
     if (auth && res.status === 401) {
       clearToken();
     }

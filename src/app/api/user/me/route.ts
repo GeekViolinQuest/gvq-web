@@ -7,16 +7,22 @@ function getApiUrl() {
 }
 
 export async function GET(req: Request) {
-  const API_URL = process.env.API_URL;
+  const API_URL = getApiUrl();
   if (!API_URL) {
-    return NextResponse.json({ ok: false, error: "API_URL não definida" }, { status: 500 });
+    return NextResponse.json(
+      { ok: false, error: "API_URL/NEXT_PUBLIC_API_URL não definida" },
+      { status: 500 }
+    );
   }
 
   const auth = req.headers.get("authorization") || "";
 
-  const r = await fetch(`${API_URL}/api/user/me`, {
+  const r = await fetch(`${API_URL}/api/auth/me`, {
     method: "GET",
-    headers: { Authorization: auth },
+    headers: {
+      // repassa exatamente como veio do browser
+      Authorization: auth,
+    },
     cache: "no-store",
   });
 
