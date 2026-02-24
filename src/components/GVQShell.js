@@ -1,5 +1,31 @@
 "use client";
 
+import Link from "next/link";
+
+function HeaderRight({ right }) {
+  return (
+    <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+      <Link
+        href="/dashboard"
+        style={{
+          textDecoration: "none",
+          padding: "10px 12px",
+          borderRadius: 12,
+          border: "1px solid rgba(255,255,255,0.12)",
+          background: "rgba(255,255,255,0.06)",
+          color: "white",
+          cursor: "pointer",
+          fontWeight: 900,
+        }}
+      >
+        🏠 Dashboard
+      </Link>
+
+      {right ? <div>{right}</div> : null}
+    </div>
+  );
+}
+
 export default function GVQShell({ title, subtitle, right, children }) {
   return (
     <div
@@ -18,7 +44,8 @@ export default function GVQShell({ title, subtitle, right, children }) {
             <h1 style={{ fontSize: 34, marginBottom: 6 }}>{title}</h1>
             {subtitle ? <div style={{ opacity: 0.8 }}>{subtitle}</div> : null}
           </div>
-          {right ? <div>{right}</div> : null}
+
+          <HeaderRight right={right} />
         </div>
 
         <div style={{ marginTop: 18 }}>{children}</div>
