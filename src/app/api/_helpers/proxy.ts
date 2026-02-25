@@ -1,50 +1,69 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-export const dynamic = "force-dynamic";
-export const runtime = "nodejs";
+function getApiBase() {
+  const raw = (process.env.API_URL || "").trim();
+  return raw.replace(/\/$/, "");
+}
 
-function getApiUrl() {
-  return (process.env.API_URL || "").trim().replace(/\/$/, "");
+function cloneHeaders(req: NextRequest) {
+  const h = new Headers();
+
+  // repassa Authorization (principal)
+  const auth = req.headers.get("authorization");
+  if (auth) h.set("authorization", auth);
+
+  // repassa content-type quando existir
+  const ct = req.headers.get("content-type");
+  if (ct) h.set("content-type", ct);
+
+  // (opcional) repassa accept-language etc
+  const al = req.headers.get("accept-language");
+  if (al) h.set("accept-language", al);
+
+  return h;
 }
 
 export async function proxyToBackend(req: NextRequest, backendPath: string) {
-  const API_URL = getApiUrl();
-  if (!API_URL) {
+  const API_BASE = getApiBase();
+  if (!API_BASE) {
     return NextResponse.json(
       { ok: false, error: "API_URL não definida no servidor (gvq-web)" },
       { status: 500 }
     );
   }
 
-  const auth = req.headers.get("authorization") || "";
-  const headers = new Headers();
-  if (auth) headers.set("authorization", auth);
-
-  const ct = req.headers.get("content-type");
-  if (ct) headers.set("content-type", ct);
+  // preserva querystring
+  const qs = req.nextUrl.search || "";
+  const target = `${API_BASE}${backendPath}${qs}`;
 
   const method = req.method.toUpperCase();
-  const hasBody = !["GET", "HEAD"].includes(method);
+  const headers = cloneHeaders(req);
 
-  const target = `${API_URL}${backendPath}${req.nextUrl.search || ""}`;
+  let body: any = undefined;
+  if (method !== "GET" && method !== "HEAD") {
+    // importante: não tentar ler body em GET/HEAD
+    body = await req.text().catch(() => "");
+  }
 
-  const r = await fetch(target, {
+  const upstream = await fetch(target, {
     method,
     headers,
     cache: "no-store",
-    body: hasBody ? await req.text() : undefined,
+    body: body && body.length ? body : undefined,
   });
 
-  const contentType = r.headers.get("content-type") || "";
+  const contentType = upstream.headers.get("content-type") || "";
+
+  // devolve json/text preservando status
   if (contentType.includes("application/json")) {
-    const data = await r.json().catch(() => ({}));
-    return NextResponse.json(data, { status: r.status });
+    const data = await upstream.json().catch(() => ({}));
+    return NextResponse.json(data, { status: upstream.status });
   }
 
-  const text = await r.text().catch(() => "");
+  const text = await upstream.text().catch(() => "");
   return new NextResponse(text, {
-    status: r.status,
+    status: upstream.status,
     headers: { "content-type": contentType || "text/plain; charset=utf-8" },
   });
 }

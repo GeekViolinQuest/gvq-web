@@ -34,7 +34,7 @@ export default function AuthGate({ children }) {
       }
 
       // ✅ Valida token (rota interna do Next)
-      const r = await apiGet("/api/user/me", { auth: true });
+      const r = await apiGet("/api/me", { auth: true });
 
       if (!alive) return;
 
