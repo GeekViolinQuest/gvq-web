@@ -1,17 +1,12 @@
+// src/app/api/leaderboard/[tab]/route.ts
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 function getApiUrl() {
-  return (process.env.API_URL || "").replace(/\/$/, "");
-}
-
-function forwardAuth(req: NextRequest) {
-  const h = new Headers();
-  const auth = req.headers.get("authorization");
-  if (auth) h.set("authorization", auth);
-  return h;
+  return (process.env.API_URL || "").trim().replace(/\/$/, "");
 }
 
 export async function GET(req: NextRequest, ctx: any) {
@@ -23,22 +18,20 @@ export async function GET(req: NextRequest, ctx: any) {
     );
   }
 
-  // ✅ compatível com ctx.params normal OU Promise (dependendo da tipagem do Next)
   const rawParams = ctx?.params ? await ctx.params : {};
   const tab = String(rawParams?.tab || "").trim();
-
   if (!tab) {
     return NextResponse.json({ ok: false, error: "Tab inválida" }, { status: 400 });
   }
 
-  const qs = req.nextUrl?.search || "";
+  const auth = req.headers.get("authorization") || "";
+  const qs = req.nextUrl.search || "";
 
-  // ✅ backend tem prefixo /api (confirmado pelo seu server.js)
   const target = `${API_URL}/api/leaderboard/${encodeURIComponent(tab)}${qs}`;
 
   const r = await fetch(target, {
     method: "GET",
-    headers: forwardAuth(req),
+    headers: auth ? { Authorization: auth } : {},
     cache: "no-store",
   });
 

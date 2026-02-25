@@ -8,10 +8,7 @@ function getApiUrl() {
   return (process.env.API_URL || "").trim().replace(/\/$/, "");
 }
 
-export async function proxyToBackend(
-  req: NextRequest,
-  backendPath: string
-) {
+export async function proxyToBackend(req: NextRequest, backendPath: string) {
   const API_URL = getApiUrl();
   if (!API_URL) {
     return NextResponse.json(
@@ -22,9 +19,8 @@ export async function proxyToBackend(
 
   const auth = req.headers.get("authorization") || "";
   const headers = new Headers();
-  if (auth) headers.set("Authorization", auth);
+  if (auth) headers.set("authorization", auth);
 
-  // Repassa content-type quando tiver body
   const ct = req.headers.get("content-type");
   if (ct) headers.set("content-type", ct);
 

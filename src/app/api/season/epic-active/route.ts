@@ -1,25 +1,10 @@
-import { NextResponse } from "next/server";
+// src/app/api/season/epic-active/route.ts
+import type { NextRequest } from "next/server";
+import { proxyToBackend } from "../../_helpers/proxy";
+
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
-function getApiUrl() {
-  const raw = process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || "";
-  return raw.replace(/\/$/, "");
-}
-
-export async function GET(req) {
-  const API_URL = getApiUrl();
-  if (!API_URL) {
-    return NextResponse.json({ ok: false, error: "API_URL não definida" }, { status: 500 });
-  }
-
-  const auth = req.headers.get("authorization") || "";
-
-  const r = await fetch(`${API_URL}/api/season/epic-active`, {
-    method: "GET",
-    headers: { Authorization: auth },
-    cache: "no-store",
-  });
-
-  const data = await r.json().catch(() => ({}));
-  return NextResponse.json(data, { status: r.status });
+export async function GET(req: NextRequest) {
+  return proxyToBackend(req, `/api/season/epic-active`);
 }
