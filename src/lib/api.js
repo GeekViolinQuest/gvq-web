@@ -16,60 +16,35 @@ export function clearToken() {
   localStorage.removeItem("gvq_token");
 }
 
-function getBase() {
-  // ✅ Se existir NEXT_PUBLIC_API_URL, o front chama o backend direto (útil no dev).
-  // ✅ Se NÃO existir, o front chama o próprio site e o Next faz proxy via /api/_proxy.
-  const b = (process.env.NEXT_PUBLIC_API_URL || "").trim().replace(/\/$/, "");
-  return b; // pode ser "" (modo proxy)
-}
-
-function rewritePathForProxy(path) {
-  // quando base=="" (modo proxy), qualquer /api/... vira /api/_proxy/...
-  if (path.startsWith("/api/_proxy/")) return path;
-  if (path.startsWith("/api/")) return `/api/_proxy${path}`;
-  if (path.startsWith("/")) return `/api/_proxy${path}`;
-  return `/api/_proxy/${path}`;
-}
-
-function joinUrl(base, path) {
-  if (path.startsWith("http")) return path;
-
-  if (!path.startsWith("/")) path = `/${path}`;
-
-  if (!base) {
-    // modo proxy do Next
-    return rewritePathForProxy(path);
-  }
-
-  // modo direto para o backend
-  return `${base}${path}`;
-}
-
 /**
- * Padrão A (site inteiro):
- * - NUNCA lança throw
- * - SEMPRE retorna um objeto com ok/status
+ * Padrão:
+ * - Frontend chama SEMPRE rotas internas do Next: /api/...
+ * - Essas rotas internas falam com o backend via process.env.API_URL no servidor.
+ * - NUNCA usa NEXT_PUBLIC_API_URL no browser (evita CORS e inconsistência).
  */
 export async function apiFetch(
   path,
   { method = "GET", body, auth = false, headers: extraHeaders } = {}
 ) {
+  let url = path;
+  if (!url.startsWith("/")) url = `/${url}`;
+
   const headers = new Headers(extraHeaders || {});
-  headers.set("Content-Type", "application/json");
+
+  // Só seta JSON se tiver body
+  if (body !== undefined) headers.set("Content-Type", "application/json");
 
   if (auth) {
     const token = getToken();
     if (token) headers.set("Authorization", `Bearer ${token}`);
   }
 
-  const url = joinUrl(getBase(), path);
-
   try {
     const res = await fetch(url, {
       method,
       headers,
       cache: "no-store",
-      body: body ? JSON.stringify(body) : undefined,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
     });
 
     const data = await res.json().catch(() => ({}));

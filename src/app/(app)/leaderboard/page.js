@@ -242,7 +242,7 @@ export default function LeaderboardPage() {
     setLoading(true);
 
     // ✅ chama o PROXY (não a rota local /api/leaderboard)
-    const r = await apiGet(`/api/_proxy/leaderboard/${tab}?limit=50&page=1`, { auth: true });
+    const r = await apiGet(`/api/leaderboard/${tab}?limit=50&page=1`, { auth: true });
 
     if (!r.ok) {
       setErr(r.error || "Falha ao carregar ranking");
