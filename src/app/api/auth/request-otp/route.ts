@@ -1,15 +1,16 @@
 import { NextResponse } from "next/server";
+
 export const dynamic = "force-dynamic";
 
 function getApiUrl() {
-  return (process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
+  return (process.env.API_URL || "").replace(/\/$/, "");
 }
 
 export async function POST(req: Request) {
   const API_URL = getApiUrl();
   if (!API_URL) {
     return NextResponse.json(
-      { ok: false, error: "API_URL/NEXT_PUBLIC_API_URL não definida no servidor (Zeabur)" },
+      { ok: false, error: "API_URL não definida no servidor (gvq-web)" },
       { status: 500 }
     );
   }
