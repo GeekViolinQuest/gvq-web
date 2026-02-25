@@ -6,6 +6,12 @@ function getApiUrl() {
   return (process.env.API_URL || "").replace(/\/$/, "");
 }
 
+function getTokenFromCookieHeader(cookieHeader: string | null) {
+  if (!cookieHeader) return null;
+  const m = cookieHeader.match(/(?:^|;\s*)gvq_token=([^;]+)/);
+  return m ? decodeURIComponent(m[1]) : null;
+}
+
 export async function proxyToBackend(req: NextRequest, backendPath: string) {
   const API_URL = getApiUrl();
   if (!API_URL) {
@@ -20,16 +26,30 @@ export async function proxyToBackend(req: NextRequest, backendPath: string) {
   const search = req.nextUrl.search;
   if (search) url.search = search;
 
-  // ✅ repassa headers importantes (especialmente Authorization)
+  // ===== headers =====
   const headers = new Headers();
-  const auth = req.headers.get("authorization");
-  if (auth) headers.set("authorization", auth);
+
+  // Content negotiation (opcional, mas ok)
+  const accept = req.headers.get("accept");
+  if (accept) headers.set("accept", accept);
 
   const contentType = req.headers.get("content-type");
   if (contentType) headers.set("content-type", contentType);
 
-  const accept = req.headers.get("accept");
-  if (accept) headers.set("accept", accept);
+  // ✅ AUTH: prioriza Authorization vindo do próprio request
+  // mas se não vier, pega do cookie httpOnly "gvq_token"
+  const auth = req.headers.get("authorization");
+  if (auth) {
+    headers.set("authorization", auth);
+  } else {
+    // NextRequest tem req.cookies, mas pra evitar diferença de runtime,
+    // usamos também o header cookie como fallback.
+    const token =
+      req.cookies.get("gvq_token")?.value ||
+      getTokenFromCookieHeader(req.headers.get("cookie"));
+
+    if (token) headers.set("authorization", `Bearer ${token}`);
+  }
 
   // body só quando necessário
   let body: string | undefined = undefined;
@@ -45,12 +65,16 @@ export async function proxyToBackend(req: NextRequest, backendPath: string) {
     cache: "no-store",
   });
 
-  // devolve exatamente o que veio (JSON ou não)
+  // devolve exatamente o que veio
   const out = await r.text();
+
+  // ✅ repassa content-type do backend (senão quebra JSON/text)
+  const respHeaders: Record<string, string> = {
+    "Content-Type": r.headers.get("content-type") || "application/json",
+  };
+
   return new NextResponse(out, {
     status: r.status,
-    headers: {
-      "Content-Type": r.headers.get("content-type") || "application/json",
-    },
+    headers: respHeaders,
   });
 }
