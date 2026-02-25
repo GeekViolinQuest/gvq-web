@@ -1,69 +1,71 @@
+// src/app/api/_helpers/proxy.ts
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-function getApiBase() {
-  const raw = (process.env.API_URL || "").trim();
-  return raw.replace(/\/$/, "");
+function getApiUrl() {
+  const base = (process.env.API_URL || "").replace(/\/$/, "");
+  return base;
 }
 
-function cloneHeaders(req: NextRequest) {
-  const h = new Headers();
-
-  // repassa Authorization (principal)
-  const auth = req.headers.get("authorization");
-  if (auth) h.set("authorization", auth);
-
-  // repassa content-type quando existir
-  const ct = req.headers.get("content-type");
-  if (ct) h.set("content-type", ct);
-
-  // (opcional) repassa accept-language etc
-  const al = req.headers.get("accept-language");
-  if (al) h.set("accept-language", al);
-
-  return h;
+function stripHopByHopHeaders(headers: Headers) {
+  // headers que não devem ser repassados
+  const banned = new Set([
+    "connection",
+    "keep-alive",
+    "proxy-authenticate",
+    "proxy-authorization",
+    "te",
+    "trailer",
+    "transfer-encoding",
+    "upgrade",
+    "host",
+  ]);
+  const out = new Headers();
+  for (const [k, v] of headers.entries()) {
+    if (!banned.has(k.toLowerCase())) out.set(k, v);
+  }
+  return out;
 }
 
-export async function proxyToBackend(req: NextRequest, backendPath: string) {
-  const API_BASE = getApiBase();
-  if (!API_BASE) {
-    return NextResponse.json(
-      { ok: false, error: "API_URL não definida no servidor (gvq-web)" },
-      { status: 500 }
-    );
+export async function proxyToBackend(req: NextRequest, path: string) {
+  const API_URL = getApiUrl();
+  if (!API_URL) {
+    return NextResponse.json({ ok: false, error: "API_URL não definida no servidor" }, { status: 500 });
   }
 
-  // preserva querystring
-  const qs = req.nextUrl.search || "";
-  const target = `${API_BASE}${backendPath}${qs}`;
+  // ✅ copia headers DO CLIENTE, incluindo Authorization
+  const headers = stripHopByHopHeaders(req.headers);
 
-  const method = req.method.toUpperCase();
-  const headers = cloneHeaders(req);
+  // (opcional, mas bom) garante que o backend saiba que é JSON quando for o caso
+  // NÃO força Content-Type em GET
+  // headers.set("Accept", "application/json");
 
-  let body: any = undefined;
-  if (method !== "GET" && method !== "HEAD") {
-    // importante: não tentar ler body em GET/HEAD
-    body = await req.text().catch(() => "");
-  }
+  const url = `${API_URL}${path}`;
 
-  const upstream = await fetch(target, {
-    method,
+  const init: RequestInit = {
+    method: req.method,
     headers,
     cache: "no-store",
-    body: body && body.length ? body : undefined,
-  });
+  };
 
-  const contentType = upstream.headers.get("content-type") || "";
-
-  // devolve json/text preservando status
-  if (contentType.includes("application/json")) {
-    const data = await upstream.json().catch(() => ({}));
-    return NextResponse.json(data, { status: upstream.status });
+  // ✅ repassa body em métodos que podem ter body
+  if (!["GET", "HEAD"].includes(req.method)) {
+    // NextRequest pode ser lido como ArrayBuffer uma vez
+    const body = await req.arrayBuffer();
+    init.body = body.byteLength ? body : undefined;
   }
 
-  const text = await upstream.text().catch(() => "");
-  return new NextResponse(text, {
-    status: upstream.status,
-    headers: { "content-type": contentType || "text/plain; charset=utf-8" },
-  });
+  const r = await fetch(url, init);
+
+  // ✅ devolve o body e status pro browser
+  const contentType = r.headers.get("content-type") || "";
+  const resHeaders = new Headers(r.headers);
+
+  if (contentType.includes("application/json")) {
+    const data = await r.json().catch(() => ({}));
+    return NextResponse.json(data, { status: r.status, headers: resHeaders });
+  }
+
+  const text = await r.text().catch(() => "");
+  return new NextResponse(text, { status: r.status, headers: resHeaders });
 }
