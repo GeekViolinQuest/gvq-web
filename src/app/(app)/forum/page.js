@@ -83,6 +83,33 @@ function Textarea(props) {
   );
 }
 
+function Avatar({ name, url, size = 28 }) {
+  const initial = String(name || "G").trim().slice(0, 1).toUpperCase();
+  return (
+    <div
+      style={{
+        width: size,
+        height: size,
+        borderRadius: 999,
+        overflow: "hidden",
+        border: "1px solid rgba(255,255,255,0.14)",
+        background: "rgba(255,255,255,0.08)",
+        display: "grid",
+        placeItems: "center",
+        flex: "0 0 auto",
+      }}
+      title={name || "Guardião"}
+    >
+      {url ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={url} alt={name || "avatar"} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+      ) : (
+        <span style={{ fontWeight: 1000, fontSize: 12, opacity: 0.95 }}>{initial}</span>
+      )}
+    </div>
+  );
+}
+
 function TopicCard({ t }) {
   const when = t?.lastReplyAt
     ? new Date(t.lastReplyAt).toLocaleString("pt-BR")
@@ -93,13 +120,7 @@ function TopicCard({ t }) {
   const metaLabel = t?.lastReplyAt ? "Última resposta" : "Criado em";
 
   return (
-    <Link
-      href={`/forum/${t.id}`}
-      style={{
-        textDecoration: "none",
-        color: "white",
-      }}
-    >
+    <Link href={`/forum/${t.id}`} style={{ textDecoration: "none", color: "white" }}>
       <div
         style={{
           border: "1px solid rgba(255,255,255,0.12)",
@@ -112,9 +133,10 @@ function TopicCard({ t }) {
         }}
       >
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+          <Avatar name={t.authorName} url={t.authorAvatarUrl} />
           {t.isPinned ? <span style={{ fontSize: 12, opacity: 0.9 }}>📌 Fixado</span> : null}
           {t.isLocked ? <span style={{ fontSize: 12, opacity: 0.9 }}>🔒 Bloqueado</span> : null}
-          <div style={{ fontWeight: 900, fontSize: 16 }}>{t.title}</div>
+          <div style={{ fontWeight: 1000, fontSize: 16 }}>{t.title}</div>
         </div>
 
         {t.bodyPreview ? (
@@ -131,8 +153,9 @@ function TopicCard({ t }) {
             ))}
           </div>
 
-          <div style={{ fontSize: 12, opacity: 0.75, display: "flex", gap: 10 }}>
+          <div style={{ fontSize: 12, opacity: 0.75, display: "flex", gap: 10, flexWrap: "wrap" }}>
             <span>💬 {t.repliesCount ?? 0}</span>
+            <span>{t.likedByMe ? "❤️" : "🤍"} {t.likesCount ?? 0}</span>
             <span>
               {metaLabel}: {when}
             </span>
@@ -178,8 +201,8 @@ export default function ForumPage() {
     }
 
     // ✅ FIX: apiGet retorna em r.data
-    setRows(r.data?.rows || []);
-    setCursor(r.data?.nextCursor || null);
+    setRows(r.rows || []);
+    setCursor(r.nextCursor || null);
     setLoading(false);
   }
 
@@ -201,8 +224,8 @@ export default function ForumPage() {
     }
 
     // ✅ FIX: r.data
-    setRows((prev) => [...prev, ...(r.data?.rows || [])]);
-    setCursor(r.data?.nextCursor || null);
+    setRows((prev) => [...prev, ...(r.rows || [])]);
+    setCursor(r.nextCursor || null);
   }
 
   async function createTopic() {

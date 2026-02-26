@@ -31,7 +31,6 @@ export async function apiFetch(
 
   const headers = new Headers(extraHeaders || {});
 
-  // Só seta JSON se tiver body
   if (body !== undefined) headers.set("Content-Type", "application/json");
 
   if (auth) {
@@ -47,7 +46,11 @@ export async function apiFetch(
       body: body !== undefined ? JSON.stringify(body) : undefined,
     });
 
-    const data = await res.json().catch(() => ({}));
+    const parsed = await res.json().catch(() => ({}));
+
+    // ✅ sempre expõe payload em `data` (pra quem usa r.data)
+    // ✅ e também espalha o payload (pra quem usa r.user/r.progress etc)
+    const payload = parsed && typeof parsed === "object" ? parsed : { value: parsed };
 
     if (auth && res.status === 401) clearToken();
 
@@ -55,20 +58,23 @@ export async function apiFetch(
       return {
         ok: false,
         status: res.status,
-        ...(data && typeof data === "object" ? data : {}),
-        error: data?.error || `Erro HTTP ${res.status}`,
+        data: payload,
+        ...payload,
+        error: payload?.error || `Erro HTTP ${res.status}`,
       };
     }
 
     return {
       ok: true,
       status: res.status,
-      ...(data && typeof data === "object" ? data : { data }),
+      data: payload,
+      ...payload,
     };
   } catch (e) {
     return {
       ok: false,
       status: 0,
+      data: null,
       error: e?.message || "Falha de rede",
     };
   }

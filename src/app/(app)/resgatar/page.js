@@ -3,8 +3,9 @@
 import React, { useMemo, useState } from "react";
 import GVQShell from "@/components/GVQShell";
 import { apiFetch } from "@/lib/api";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
+import AuthGate from "@/components/AuthGate";
+import LoadingDots from "@/components/LoadingDots";
 
 function Card({ children }) {
   return (
@@ -52,7 +53,7 @@ function Button({ children, onClick, disabled, variant = "primary", title, type 
   );
 }
 
-function Input({ value, onChange, placeholder }) {
+function Input({ value, onChange, placeholder, disabled }) {
   return (
     <input
       value={value}
@@ -61,6 +62,7 @@ function Input({ value, onChange, placeholder }) {
       autoCapitalize="off"
       autoCorrect="off"
       spellCheck={false}
+      disabled={disabled}
       style={{
         width: "100%",
         padding: 12,
@@ -70,6 +72,7 @@ function Input({ value, onChange, placeholder }) {
         background: "rgba(255,255,255,0.04)",
         color: "white",
         outline: "none",
+        opacity: disabled ? 0.65 : 1,
       }}
     />
   );
@@ -112,7 +115,19 @@ function RewardCard({ reward, type, gainedLevel, code }) {
         }}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={imgSrc} alt={safeNome} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+        <img
+          src={imgSrc}
+          alt={safeNome}
+          style={{ width: "100%", height: "100%", objectFit: "cover" }}
+          loading="lazy"
+          decoding="async"
+          onError={(e) => {
+            const el = e.currentTarget;
+            if (el.dataset.fallbackApplied) return;
+            el.dataset.fallbackApplied = "1";
+            el.src = "/locked.png";
+          }}
+        />
       </div>
 
       <div style={{ flex: 1 }}>
@@ -134,10 +149,9 @@ function RewardCard({ reward, type, gainedLevel, code }) {
 }
 
 function normalizeRedeemCode(raw) {
-  // aceita: "!runa001", "runa001", "RUNA001", "  !RunaOrigem  "
   let s = String(raw || "").trim();
   if (!s) return "";
-  s = s.replace(/\s+/g, ""); // remove espaços no meio
+  s = s.replace(/\s+/g, "");
   if (!s.startsWith("!")) s = "!" + s;
   return s.toLowerCase();
 }
@@ -151,10 +165,7 @@ export default function ResgatarPage() {
   const [message, setMessage] = useState(null);
   const [error, setError] = useState(null);
 
-  const [result, setResult] = useState(null); // {ok, type, code, reward, gainedLevel, aluno}
-
-  // Ligue/desligue o redirect automático aqui
-  const AUTO_REDIRECT = true;
+  const [result, setResult] = useState(null);
 
   const cleanedPreview = useMemo(() => normalizeRedeemCode(code), [code]);
   const canSubmit = useMemo(() => !!cleanedPreview && !loading, [cleanedPreview, loading]);
@@ -180,21 +191,15 @@ export default function ResgatarPage() {
         body: { code: cleaned },
       });
 
-      if (!res?.ok) {
-        throw new Error(res?.error || "Erro ao resgatar");
-      }
+      if (!res?.ok) throw new Error(res?.error || "Erro ao resgatar");
 
+      // res já vem com { ok, type, code, reward, gainedLevel, aluno }
       setResult(res);
-
       setMessage(res?.type === "runa" ? "✨ Runa resgatada com sucesso!" : "🏆 Relíquia conquistada!");
-
       setCode("");
 
-      if (AUTO_REDIRECT) {
-        setTimeout(() => {
-          router.push("/perfil");
-        }, 900);
-      }
+      // pequeno redirect (opcional)
+      setTimeout(() => router.push("/perfil"), 900);
     } catch (err) {
       setError(err?.message || "Erro ao resgatar");
     } finally {
@@ -202,14 +207,67 @@ export default function ResgatarPage() {
     }
   }
 
-  const right = (
-    <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-      <Link href="/dashboard" style={{ textDecoration: "none" }}>
-        <Button variant="ghost">← Voltar ao Dashboard</Button>
-      </Link>
-      <Link href="/perfil" style={{ textDecoration: "none" }}>
-        <Button variant="ghost">👤 Ir para Perfil</Button>
-      </Link>
-    </div>
+  return (
+    <AuthGate>
+      <GVQShell
+        title="Resgatar"
+        subtitle="Insira um código de Runa ou Relíquia para registrar sua conquista no site."
+      >
+        <Card>
+          <form onSubmit={handleSubmit} style={{ display: "grid", gap: 10 }}>
+            <div style={{ fontWeight: 900 }}>🔓 Código</div>
+
+            <Input
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              placeholder="Ex: !runa001  |  !reliquiapaz  |  runaorigem"
+              disabled={loading}
+            />
+
+            {cleanedPreview ? (
+              <div style={{ fontSize: 12, opacity: 0.8 }}>
+                Prévia: <span style={{ opacity: 1, fontWeight: 800 }}>{cleanedPreview}</span>
+              </div>
+            ) : null}
+
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 6 }}>
+              <Button type="submit" disabled={!canSubmit}>
+                {loading ? <LoadingDots label="Resgatando" /> : "Resgatar"}
+              </Button>
+
+              <Button
+                variant="ghost"
+                disabled={loading}
+                onClick={() => {
+                  setCode("");
+                  setMessage(null);
+                  setError(null);
+                  setResult(null);
+                }}
+              >
+                Limpar
+              </Button>
+            </div>
+
+            {message ? (
+              <div style={{ marginTop: 10, opacity: 0.95 }}>✅ {message}</div>
+            ) : null}
+
+            {error ? (
+              <div style={{ marginTop: 10, color: "#feb2b2" }}>❌ {error}</div>
+            ) : null}
+
+            {result?.reward ? (
+              <RewardCard
+                reward={result.reward}
+                type={result.type}
+                gainedLevel={result.gainedLevel}
+                code={result.code}
+              />
+            ) : null}
+          </form>
+        </Card>
+      </GVQShell>
+    </AuthGate>
   );
 }

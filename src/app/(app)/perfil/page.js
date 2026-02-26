@@ -341,6 +341,20 @@ function AvatarEditor({ user, onUpdated }) {
   );
 }
 
+function normalizeCode(code) {
+  return String(code || "").trim().toLowerCase().replace(/\s+/g, "");
+}
+
+// aceita: "coragem", "reliquiacoragem", "!reliquiacoragem"
+function normalizeRelicCode(code) {
+  return normalizeCode(code).replace(/^!/, "").replace(/^reliquia/, "");
+}
+
+// aceita: "001", "runa001", "!runa001"
+function normalizeRunaCode(code) {
+  return normalizeCode(code).replace(/^!/, "").replace(/^runa/, "");
+}
+
 export default function PerfilPage() {
   const [loading, setLoading] = useState(true);
   const [me, setMe] = useState(null);
@@ -391,8 +405,15 @@ export default function PerfilPage() {
   const progress = me?.progress || {};
   const user = me?.user || {};
 
-  const unlockedRunas = new Set(progress.runas || []);
-  const unlockedReliquias = new Set(progress.reliquias || []);
+  const unlockedRunas = useMemo(() => {
+  const arr = Array.isArray(progress.runas) ? progress.runas : [];
+  return new Set(arr.map(normalizeRunaCode).filter(Boolean));
+}, [progress.runas]);
+
+const unlockedReliquias = useMemo(() => {
+  const arr = Array.isArray(progress.reliquias) ? progress.reliquias : [];
+  return new Set(arr.map(normalizeRelicCode).filter((x) => x && x !== "0"));
+}, [progress.reliquias]);
 
   const runasList = useMemo(() => {
     const obj = catalog?.runas || {};
@@ -401,7 +422,7 @@ export default function PerfilPage() {
       nome: data?.nome || code,
       imagem: data?.imagem || null,
       tipo: data?.tipo || "",
-      locked: !unlockedRunas.has(code),
+      locked: !unlockedRunas.has(normalizeRunaCode(code)),
     }));
   }, [catalog, unlockedRunas]);
 
@@ -411,12 +432,21 @@ export default function PerfilPage() {
       code,
       nome: data?.nome || code,
       imagem: data?.imagem || null,
-      locked: !unlockedReliquias.has(code),
+      locked: !unlockedReliquias.has(normalizeRelicCode(code)),
     }));
   }, [catalog, unlockedReliquias]);
 
   const totalRunas = runasList.length;
   const totalReliquias = reliquiasList.length;
+  const missingRelics = useMemo(() => {
+  const cat = catalog?.reliquias || {};
+  const catKeys = new Set(Object.keys(cat).map(normalizeRelicCode));
+
+  const arr = Array.isArray(progress.reliquias) ? progress.reliquias : [];
+  const unlocked = arr.map(normalizeRelicCode).filter((x) => x && x !== "0");
+
+  return unlocked.filter((code) => !catKeys.has(code));
+}, [catalog, progress.reliquias]);
 
   const gotRunas = runasList.filter((x) => !x.locked).length;
   const gotReliquias = reliquiasList.filter((x) => !x.locked).length;

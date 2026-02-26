@@ -11,10 +11,11 @@ function isActivePath(pathname, href) {
   return pathname === href || pathname.startsWith(href + "/");
 }
 
-function Pill({ children, title }) {
+function Pill({ children, title, onClick, clickable }) {
   return (
     <span
       title={title}
+      onClick={onClick}
       style={{
         fontSize: 12,
         padding: "6px 10px",
@@ -23,6 +24,8 @@ function Pill({ children, title }) {
         background: "rgba(255,255,255,0.04)",
         opacity: 0.95,
         whiteSpace: "nowrap",
+        cursor: clickable ? "pointer" : "default",
+        userSelect: "none",
       }}
     >
       {children}
@@ -61,10 +64,14 @@ function NavItem({ href, icon, label, onClick }) {
 
 export default function GVQTopNav() {
   const router = useRouter();
+  const pathname = usePathname();
+
   const [open, setOpen] = useState(false);
 
-  const [me, setMe] = useState(null); // {displayName,email,role, cristaisSonoros, nivel}
+  // HUD model (simplificado pro HUB)
+  const [me, setMe] = useState(null); // { displayName, email, role, cristaisSonoros, nivel }
   const [meErr, setMeErr] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
 
   const items = useMemo(
     () => [
@@ -80,25 +87,57 @@ export default function GVQTopNav() {
 
   const isGM = me?.role === "gm" || me?.role === "admin";
 
-  async function loadMe(signal) {
+  function mapUserMeToHud(payload) {
+    // payload esperado do /api/user/me:
+    // { ok, user: {...}, progress: {...} }
+    const u = payload?.user || {};
+    const p = payload?.progress || {};
+
+    return {
+      displayName: u.displayName || "",
+      email: u.email || "",
+      role: u.role || "aluno",
+      cristaisSonoros: typeof p.cristais === "number" ? p.cristais : 0,
+      nivel: typeof p.level === "number" ? p.level : 0,
+    };
+  }
+
+  async function loadMe() {
     try {
       setMeErr("");
-      const r = await apiGet("/api/me", { signal, auth: true });
+      const r = await apiGet("/api/user/me", { auth: true });
       if (!r?.ok) throw new Error(r?.error || "Falha ao carregar perfil");
-      setMe(r.me || null);
+
+      // com o patch do api.js, r.data existe e também vem espalhado
+      const payload = r.data || r;
+      setMe(mapUserMeToHud(payload));
     } catch (e) {
-      if (e?.name === "AbortError") return;
-      // Não derruba a UI — só não mostra HUD
       setMe(null);
       setMeErr(e?.message || "Erro");
     }
   }
 
+  async function refresh() {
+    setRefreshing(true);
+    await loadMe();
+    setRefreshing(false);
+  }
+
+  // 1) carrega ao montar
   useEffect(() => {
-    const ac = new AbortController();
-    loadMe(ac.signal);
-    return () => ac.abort();
+    loadMe();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // 2) recarrega ao trocar de página (mantém HUD sempre “vivo”)
+  useEffect(() => {
+    // evita spam de requests em navegação muito rápida
+    const t = setTimeout(() => {
+      loadMe();
+    }, 250);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
 
   useEffect(() => {
     const onResize = () => {
@@ -183,8 +222,12 @@ export default function GVQTopNav() {
             {me?.displayName ? <Pill title="Seu nome">{me.displayName}</Pill> : null}
 
             {typeof me?.cristaisSonoros === "number" ? (
-              <Pill title="Cristais Sonoros (Season)">
-                💎 {me.cristaisSonoros}
+              <Pill
+                title="Cristais Sonoros (clique para atualizar)"
+                clickable
+                onClick={refresh}
+              >
+                💎 {me.cristaisSonoros} {refreshing ? "…" : ""}
               </Pill>
             ) : null}
 
@@ -239,9 +282,17 @@ export default function GVQTopNav() {
               }}
             >
               {items.map((it) => (
-                <NavItem key={it.href} href={it.href} icon={it.icon} label={it.label} onClick={() => setOpen(false)} />
+                <NavItem
+                  key={it.href}
+                  href={it.href}
+                  icon={it.icon}
+                  label={it.label}
+                  onClick={() => setOpen(false)}
+                />
               ))}
-              {isGM ? <NavItem href="/admin/dashboard" icon="🛡️" label="Admin" onClick={() => setOpen(false)} /> : null}
+              {isGM ? (
+                <NavItem href="/admin/dashboard" icon="🛡️" label="Admin" onClick={() => setOpen(false)} />
+              ) : null}
             </div>
 
             {meErr ? (

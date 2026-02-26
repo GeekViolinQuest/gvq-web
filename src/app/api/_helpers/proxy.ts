@@ -39,11 +39,11 @@ export async function proxyToBackend(req: NextRequest, backendPath: string) {
   // ✅ AUTH: prioriza Authorization vindo do próprio request
   // mas se não vier, pega do cookie httpOnly "gvq_token"
   const auth = req.headers.get("authorization");
-  if (auth) {
-    headers.set("authorization", auth);
+  const hasValidBearer = !!(auth && /^Bearer\s+.+/i.test(auth));
+
+  if (hasValidBearer) {
+    headers.set("authorization", auth!);
   } else {
-    // NextRequest tem req.cookies, mas pra evitar diferença de runtime,
-    // usamos também o header cookie como fallback.
     const token =
       req.cookies.get("gvq_token")?.value ||
       getTokenFromCookieHeader(req.headers.get("cookie"));

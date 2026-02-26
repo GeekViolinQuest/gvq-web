@@ -1,32 +1,9 @@
-import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { proxyToBackend } from "../../_helpers/proxy";
+
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
-function getApiUrl() {
-  return (process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
-}
-
-export async function POST(req: Request) {
-  const API_URL = getApiUrl();
-  if (!API_URL) {
-    return NextResponse.json({ ok: false, error: "API_URL não definida" }, { status: 500 });
-  }
-
-  const body = await req.json().catch(() => ({}));
-
-  const r = await fetch(`${API_URL}/api/auth/verify-otp`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    cache: "no-store",
-    body: JSON.stringify(body),
-  });
-
-  const data = await r.json().catch(() => ({}));
-
-  const res = NextResponse.json(data, { status: r.status });
-
-  // ✅ REPASSA O COOKIE PRO BROWSER
-  const setCookie = r.headers.get("set-cookie");
-  if (setCookie) res.headers.set("set-cookie", setCookie);
-
-  return res;
+export async function POST(req: NextRequest) {
+  return proxyToBackend(req, `/api/auth/request-otp`);
 }
