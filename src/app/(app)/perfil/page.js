@@ -5,6 +5,7 @@ import GVQShell from "@/components/GVQShell";
 import LoadingDots from "@/components/LoadingDots";
 import { apiGet, apiPost } from "@/lib/api";
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 
 function ItemCard({ title, subtitle, img, locked, tag }) {
   return (
@@ -18,7 +19,6 @@ function ItemCard({ title, subtitle, img, locked, tag }) {
         alignItems: "center",
         opacity: locked ? 0.35 : 1,
         background: "rgba(255,255,255,0.03)",
-      
       }}
     >
       <div
@@ -40,7 +40,7 @@ function ItemCard({ title, subtitle, img, locked, tag }) {
           onError={(e) => {
             e.currentTarget.onerror = null;
             e.currentTarget.src = "/locked.png";
-        }}
+          }}
         />
       </div>
 
@@ -235,7 +235,6 @@ function AvatarEditor({ user, onUpdated }) {
   async function pickFile(file) {
     if (!file) return;
 
-    // limite recomendado (tanto pra UI quanto pro backend)
     const MAX = 120 * 1024; // 120 KB
     if (file.size > MAX) {
       setErr("Arquivo muito grande. Use no máximo 120KB (ou envie uma URL).");
@@ -266,7 +265,7 @@ function AvatarEditor({ user, onUpdated }) {
     >
       <div style={{ fontWeight: 1000, marginBottom: 8 }}>🧑‍🎨 Avatar</div>
       <div style={{ opacity: 0.8, fontSize: 13, marginBottom: 10 }}>
-        Você pode usar uma URL (https) ou enviar um arquivo pequeno (até 120KB).  
+        Você pode usar uma URL (https) ou enviar um arquivo pequeno (até 120KB).
         O avatar é salvo no seu progresso (Aluno.avatarUrl).
       </div>
 
@@ -289,7 +288,7 @@ function AvatarEditor({ user, onUpdated }) {
             onError={(e) => {
               e.currentTarget.onerror = null;
               e.currentTarget.src = "/avatar-placeholder.png";
-            }}    
+            }}
           />
         </div>
 
@@ -345,14 +344,53 @@ function normalizeCode(code) {
   return String(code || "").trim().toLowerCase().replace(/\s+/g, "");
 }
 
-// aceita: "coragem", "reliquiacoragem", "!reliquiacoragem"
 function normalizeRelicCode(code) {
   return normalizeCode(code).replace(/^!/, "").replace(/^reliquia/, "");
 }
 
-// aceita: "001", "runa001", "!runa001"
 function normalizeRunaCode(code) {
   return normalizeCode(code).replace(/^!/, "").replace(/^runa/, "");
+}
+
+/**
+ * ✅ Normaliza qualquer formato vindo do /api/user/me
+ * Aceita:
+ * - { user, progress } (antigo)
+ * - { ok, me } (novo do Express)
+ * - { me } direto
+ */
+function normalizeMePayload(payload) {
+  const data = payload || {};
+
+  // já no formato antigo
+  if (data.user || data.progress) {
+    return {
+      user: data.user || {},
+      progress: data.progress || {},
+    };
+  }
+
+  // formato novo do express
+  const m = data.me || data;
+
+  // separa em user/progress do jeito que tua tela espera
+  return {
+    user: {
+      id: m.id,
+      email: m.email,
+      displayName: m.displayName,
+      role: m.role,
+      avatarUrl: m.avatarUrl,
+      displayNameRemaining: m.displayNameRemaining,
+    },
+    progress: {
+      level: m.level ?? m.nivel ?? 0,
+      cristais: m.cristais ?? m.cristaisSonoros ?? 0,
+      runas: Array.isArray(m.runas) ? m.runas : [],
+      reliquias: Array.isArray(m.reliquias) ? m.reliquias : [],
+      bonus: Array.isArray(m.bonus) ? m.bonus : [],
+    },
+  };
 }
 
 export default function PerfilPage() {
@@ -360,10 +398,12 @@ export default function PerfilPage() {
   const [me, setMe] = useState(null);
   const [catalog, setCatalog] = useState(null);
   const [err, setErr] = useState("");
+  const searchParams = useSearchParams();
+  const ts = searchParams.get("ts") || "";
 
   async function reloadMeOnly() {
     const r = await apiGet("/api/user/me", { auth: true });
-    if (r.ok) setMe(r.data);
+    if (r.ok) setMe(normalizeMePayload(r.data));
   }
 
   useEffect(() => {
@@ -392,7 +432,7 @@ export default function PerfilPage() {
         return;
       }
 
-      setMe(meR.data);
+      setMe(normalizeMePayload(meR.data));
       setCatalog(catR.data);
       setLoading(false);
     })();
@@ -400,63 +440,63 @@ export default function PerfilPage() {
     return () => {
       alive = false;
     };
-  }, []);
+  }, [ts]);
 
   const progress = me?.progress || {};
   const user = me?.user || {};
 
   const unlockedRunas = useMemo(() => {
-  const arr = Array.isArray(progress.runas) ? progress.runas : [];
-  return new Set(arr.map(normalizeRunaCode).filter(Boolean));
-}, [progress.runas]);
+    const arr = Array.isArray(progress.runas) ? progress.runas : [];
+    return new Set(arr.map(normalizeRunaCode).filter(Boolean));
+  }, [progress.runas]);
 
-const unlockedReliquias = useMemo(() => {
-  const arr = Array.isArray(progress.reliquias) ? progress.reliquias : [];
-  return new Set(arr.map(normalizeRelicCode).filter((x) => x && x !== "0"));
-}, [progress.reliquias]);
+  const unlockedReliquias = useMemo(() => {
+    const arr = Array.isArray(progress.reliquias) ? progress.reliquias : [];
+    return new Set(arr.map(normalizeRelicCode).filter((x) => x && x !== "0"));
+  }, [progress.reliquias]);
 
   const runasList = useMemo(() => {
     const obj = catalog?.runas || {};
-    return Object.entries(obj).map(([code, data]) => ({
-      code,
-      nome: data?.nome || code,
-      imagem: data?.imagem || null,
-      tipo: data?.tipo || "",
-      locked: !unlockedRunas.has(normalizeRunaCode(code)),
-    }));
+    return Object.entries(obj)
+      .map(([code, data]) => ({
+        code,
+        nome: data?.nome || code,
+        imagem: data?.imagem || null,
+        tipo: data?.tipo || "",
+        locked: !unlockedRunas.has(normalizeRunaCode(code)),
+      }))
+      // ✅ liberadas primeiro, depois por nome/código
+      .sort((a, b) => {
+        if (a.locked !== b.locked) return a.locked ? 1 : -1;
+        return String(a.nome || a.code).localeCompare(String(b.nome || b.code), "pt-BR");
+      });
   }, [catalog, unlockedRunas]);
 
   const reliquiasList = useMemo(() => {
     const obj = catalog?.reliquias || {};
-    return Object.entries(obj).map(([code, data]) => ({
-      code,
-      nome: data?.nome || code,
-      imagem: data?.imagem || null,
-      locked: !unlockedReliquias.has(normalizeRelicCode(code)),
-    }));
+    return Object.entries(obj)
+      .map(([code, data]) => ({
+        code,
+        nome: data?.nome || code,
+        imagem: data?.imagem || null,
+        locked: !unlockedReliquias.has(normalizeRelicCode(code)),
+      }))
+      // ✅ liberadas primeiro, depois por nome/código
+      .sort((a, b) => {
+        if (a.locked !== b.locked) return a.locked ? 1 : -1;
+        return String(a.nome || a.code).localeCompare(String(b.nome || b.code), "pt-BR");
+      });
   }, [catalog, unlockedReliquias]);
 
   const totalRunas = runasList.length;
   const totalReliquias = reliquiasList.length;
-  const missingRelics = useMemo(() => {
-  const cat = catalog?.reliquias || {};
-  const catKeys = new Set(Object.keys(cat).map(normalizeRelicCode));
-
-  const arr = Array.isArray(progress.reliquias) ? progress.reliquias : [];
-  const unlocked = arr.map(normalizeRelicCode).filter((x) => x && x !== "0");
-
-  return unlocked.filter((code) => !catKeys.has(code));
-}, [catalog, progress.reliquias]);
 
   const gotRunas = runasList.filter((x) => !x.locked).length;
   const gotReliquias = reliquiasList.filter((x) => !x.locked).length;
 
   return (
     <AuthGate>
-      <GVQShell
-        title="Perfil"
-        subtitle={`${user.displayName ? user.displayName : "Guardião"} · ${user.email || ""}`}
-      >
+      <GVQShell title="Perfil" subtitle={`${user.displayName ? user.displayName : "Guardião"} · ${user.email || ""}`}>
         {loading ? <LoadingDots label="Ajustando as runas do perfil" /> : null}
 
         {err ? (

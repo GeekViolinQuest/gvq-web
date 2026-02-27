@@ -20,6 +20,15 @@ export default function AuthGate({ children }) {
     async function run() {
       // ✅ Rotas públicas não exigem validação
       if (isPublic) {
+        const token = getToken();
+        if (token) {
+          const r = await apiGet("/api/user/me", { auth: true });
+          if (r.ok) {
+            router.replace("/dashboard"); // ou /perfil
+            return;
+          }
+          clearToken();
+        }
         if (alive) setReady(true);
         return;
       }
@@ -34,7 +43,7 @@ export default function AuthGate({ children }) {
       }
 
       // ✅ Valida token (rota interna do Next)
-      const r = await apiGet("/api/me", { auth: true });
+      const r = await apiGet("/api/user/me", { auth: true });
 
       if (!alive) return;
 
@@ -53,7 +62,7 @@ export default function AuthGate({ children }) {
     // Se você fizer logout em outra aba, essa aba acompanha (em rotas privadas)
     function onStorage(e) {
       if (e.key === "gvq_token" && !e.newValue) {
-        if (!publicRoutes.has(pathname)) {
+        if (!isPublic) {
           router.replace("/login");
         }
       }
@@ -65,7 +74,7 @@ export default function AuthGate({ children }) {
       alive = false;
       window.removeEventListener("storage", onStorage);
     };
-  }, [router, pathname, isPublic, publicRoutes]);
+  }, [router, pathname, isPublic]);
 
   if (!ready) {
     // ✅ evita tela preta

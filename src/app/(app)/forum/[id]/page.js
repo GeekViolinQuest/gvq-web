@@ -148,10 +148,10 @@ export default function ForumTopicPage() {
   }, [topic, meUserId, isMod]);
 
   async function loadMe() {
-    // HUD antigo usa /api/me (que retorna {ok, me:{...}})
+    // HUD antigo usa  (que retorna {ok, me:{...}})
     // já o site-first usa /api/user/me (que retorna {ok, user:{...}})
     // vamos suportar os 2.
-    const a = await apiGet("/api/me", { auth: true });
+    const a = await apiGet("/api/user/me", { auth: true });
     if (a?.ok && a.data?.me) {
       const m = a.data.me;
       setMe({

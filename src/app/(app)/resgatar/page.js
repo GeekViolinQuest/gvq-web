@@ -199,7 +199,10 @@ export default function ResgatarPage() {
       setCode("");
 
       // pequeno redirect (opcional)
-      setTimeout(() => router.push("/perfil"), 900);
+      setTimeout(() => {
+        router.push(`/perfil?ts=${Date.now()}`);
+        router.refresh();
+      }, 300);
     } catch (err) {
       setError(err?.message || "Erro ao resgatar");
     } finally {
