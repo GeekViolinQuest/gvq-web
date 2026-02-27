@@ -5,5 +5,6 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
-  return proxyToBackend(req, "/api/redeem");
+return proxyToBackend(req, "/api/redeem");
+
 }
