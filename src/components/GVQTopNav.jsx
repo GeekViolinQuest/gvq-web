@@ -78,6 +78,7 @@ export default function GVQTopNav() {
       { href: "/dashboard", icon: "🏠", label: "Dashboard" },
       { href: "/perfil", icon: "👤", label: "Perfil" },
       { href: "/season", icon: "⚔️", label: "Season Quests" },
+      { href: "/season-feed", icon: "🖼️", label: "Galeria da Season" }, // ✅ NOVO
       { href: "/resgatar", icon: "🔓", label: "Resgatar Código" },
       { href: "/leaderboard", icon: "🏆", label: "Ranking" },
       { href: "/forum", icon: "💬", label: "Comunidade" },
