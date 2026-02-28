@@ -1,6 +1,7 @@
 "use client";
 
 import AuthGate from "@/components/AuthGate";
+import Link from "next/link";
 import { apiFetch, apiGet } from "@/lib/api";
 import { useEffect, useMemo, useState } from "react";
 
@@ -225,9 +226,16 @@ export default function AdminEpicPage() {
             <div style={{ opacity: 0.8 }}>Criar/ativar/desativar eventos épicos. Apenas GM ativo.</div>
           </div>
 
-          <button onClick={load} style={btnStyle("normal", loading || saving)} disabled={loading || saving}>
-            🔄 Atualizar
-          </button>
+          {/* ✅ Bloco inserido (Voltar + Atualizar) */}
+          <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+            <Link href="/admin" style={{ color: "white", textDecoration: "none", opacity: 0.9 }}>
+              ← Voltar ao Admin
+            </Link>
+
+            <button onClick={load} style={btnStyle("normal", loading || saving)} disabled={loading || saving}>
+              🔄 Atualizar
+            </button>
+          </div>
         </div>
 
         {err ? (
@@ -263,7 +271,12 @@ export default function AdminEpicPage() {
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 10 }}>
             <Field label="Início (America/Sao_Paulo — você escolhe aqui)">
-              <input type="datetime-local" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} style={inputStyle()} />
+              <input
+                type="datetime-local"
+                value={startsAt}
+                onChange={(e) => setStartsAt(e.target.value)}
+                style={inputStyle()}
+              />
             </Field>
 
             <Field label="Fim">

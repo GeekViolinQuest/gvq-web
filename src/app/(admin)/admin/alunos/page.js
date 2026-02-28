@@ -1,6 +1,5 @@
 "use client";
 
-import AuthGate from "@/components/AuthGate";
 import { apiGet } from "@/lib/api";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
@@ -35,6 +34,8 @@ function Button({ children, onClick, disabled, variant = "primary", title }) {
         color: "white",
         cursor: disabled ? "not-allowed" : "pointer",
         opacity: disabled ? 0.6 : 1,
+        fontWeight: 900,
+        whiteSpace: "nowrap",
       }}
     >
       {children}
@@ -118,167 +119,181 @@ export default function AdminAlunosPage() {
   }, [rows]);
 
   return (
-    <AuthGate>
-      <div style={{ maxWidth: 1100, margin: "0 auto", padding: "32px 18px", color: "white" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-          <div>
-            <h1 style={{ fontSize: 34, marginBottom: 6 }}>Painel do Guardião Mestre — Alunos</h1>
-            <div style={{ opacity: 0.8 }}>Busca e visão rápida do progresso (site-first).</div>
-          </div>
-
-          <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-            <Link href="/admin/tools" style={{ color: "white", textDecoration: "none", opacity: 0.9 }}>
-              💎 Tools
-            </Link>
-          </div>
+    <div style={{ maxWidth: 1100, margin: "0 auto", padding: "32px 18px", color: "white" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+        <div>
+          <h1 style={{ fontSize: 34, marginBottom: 6 }}>Painel do Guardião Mestre — Alunos</h1>
+          <div style={{ opacity: 0.8 }}>Busca e visão rápida do progresso (site-first).</div>
         </div>
 
-        <div style={{ marginTop: 14, display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <Pill>Total: {totals.total}</Pill>
-          <Pill>Ativos: {totals.ativos}</Pill>
-          <Pill>Bloqueados: {totals.bloqueados}</Pill>
-          <Pill>Lendários: {totals.lendarios}</Pill>
+        {/* ✅ AQUI: Voltar ao Admin + Tools */}
+        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+          <Link href="/admin" style={{ color: "white", textDecoration: "none", opacity: 0.9, whiteSpace: "nowrap" }}>
+            ← Voltar ao Admin
+          </Link>
+
+          <Link href="/admin/tools" style={{ color: "white", textDecoration: "none", opacity: 0.9, whiteSpace: "nowrap" }}>
+            💎 Tools
+          </Link>
         </div>
+      </div>
 
-        <Card>
-          <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-            <div style={{ flex: 1, minWidth: 260 }}>
-              <Input
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                placeholder="Buscar por email, displayName, nome real..."
-              />
-            </div>
+      <div style={{ marginTop: 14, display: "flex", gap: 10, flexWrap: "wrap" }}>
+        <Pill>Total: {totals.total}</Pill>
+        <Pill>Ativos: {totals.ativos}</Pill>
+        <Pill>Bloqueados: {totals.bloqueados}</Pill>
+        <Pill>Lendários: {totals.lendarios}</Pill>
+      </div>
 
-            <Button onClick={load} disabled={loading}>
-              {loading ? "Carregando..." : "🔎 Buscar / Atualizar"}
-            </Button>
-
-            <Button
-              variant="ghost"
-              onClick={() => {
-                setQ("");
-                // força reload sem query
-                setTimeout(load, 0);
-              }}
-              disabled={loading}
-              title="Limpa a busca e recarrega"
-            >
-              Limpar
-            </Button>
+      <Card>
+        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+          <div style={{ flex: 1, minWidth: 260 }}>
+            <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por email, displayName, nome real..." />
           </div>
 
-          {err ? (
-            <div style={{ marginTop: 12, color: "#feb2b2" }}>❌ {err}</div>
-          ) : null}
+          <Button onClick={load} disabled={loading}>
+            {loading ? "Carregando..." : "🔎 Buscar / Atualizar"}
+          </Button>
 
-          <div style={{ marginTop: 12, overflowX: "auto" }}>
+          <Button
+            variant="ghost"
+            onClick={() => {
+              setQ("");
+              setTimeout(load, 0);
+            }}
+            disabled={loading}
+            title="Limpa a busca e recarrega"
+          >
+            Limpar
+          </Button>
+        </div>
+
+        {err ? <div style={{ marginTop: 12, color: "#feb2b2" }}>❌ {err}</div> : null}
+
+        <div style={{ marginTop: 12, overflowX: "auto" }}>
+          <div
+            style={{
+              minWidth: 980,
+              border: "1px solid rgba(255,255,255,0.12)",
+              borderRadius: 14,
+              overflow: "hidden",
+            }}
+          >
+            {/* header */}
             <div
               style={{
-                minWidth: 980,
-                border: "1px solid rgba(255,255,255,0.12)",
-                borderRadius: 14,
-                overflow: "hidden",
+                display: "grid",
+                gridTemplateColumns: "280px 220px 100px 120px 140px 100px 1fr",
+                padding: 12,
+                opacity: 0.85,
+                background: "rgba(255,255,255,0.04)",
+                fontSize: 12,
+                gap: 10,
               }}
             >
-              {/* header */}
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "280px 220px 100px 120px 120px 100px 1fr",
-                  padding: 12,
-                  opacity: 0.85,
-                  background: "rgba(255,255,255,0.04)",
-                  fontSize: 12,
-                }}
-              >
-                <div>Email</div>
-                <div>Nome</div>
-                <div>Status</div>
-                <div>Role</div>
-                <div>Progresso</div>
-                <div>💎 Cristais</div>
-                <div>Ações</div>
-              </div>
+              <div>Email</div>
+              <div>Nome</div>
+              <div>Status</div>
+              <div>Role</div>
+              <div>Progresso</div>
+              <div>💎 Cristais</div>
+              <div>Ações</div>
+            </div>
 
-              {/* rows */}
-              {loading ? (
-                <div style={{ padding: 12, opacity: 0.8 }}>Carregando...</div>
-              ) : rows?.length ? (
-                rows.map((r) => (
+            {/* rows */}
+            {loading ? (
+              <div style={{ padding: 12, opacity: 0.8 }}>Carregando...</div>
+            ) : rows?.length ? (
+              rows.map((r) => (
+                <div
+                  key={`${r.email}-${r.userId || "noid"}`}
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "280px 220px 100px 120px 140px 100px 1fr",
+                    padding: 12,
+                    borderTop: "1px solid rgba(255,255,255,0.08)",
+                    alignItems: "center",
+                    gap: 10,
+                  }}
+                >
                   <div
-                    key={`${r.email}-${r.userId || "noid"}`}
                     style={{
-                      display: "grid",
-                      gridTemplateColumns: "280px 220px 100px 120px 120px 100px 1fr",
-                      padding: 12,
-                      borderTop: "1px solid rgba(255,255,255,0.08)",
-                      alignItems: "center",
-                      gap: 10,
+                      fontSize: 13,
+                      opacity: 0.95,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                      minWidth: 0,
                     }}
+                    title={r.email}
                   >
-                    <div style={{ fontSize: 13, opacity: 0.95, overflow: "hidden", textOverflow: "ellipsis" }}>
-                      {r.email}
-                      {r.isLendario ? <span style={{ marginLeft: 8, opacity: 0.9 }}>✨</span> : null}
-                    </div>
+                    {r.email}
+                    {r.isLendario ? <span style={{ marginLeft: 8, opacity: 0.9 }}>✨</span> : null}
+                  </div>
 
-                    <div style={{ fontSize: 13, opacity: 0.95, overflow: "hidden", textOverflow: "ellipsis" }}>
-                      {r.nome || "—"}
-                    </div>
+                  <div
+                    style={{
+                      fontSize: 13,
+                      opacity: 0.95,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                      minWidth: 0,
+                    }}
+                    title={r.nome || ""}
+                  >
+                    {r.nome || "—"}
+                  </div>
 
-                    <div style={{ fontSize: 12, opacity: 0.9 }}>
-                      {r.status === "bloqueado" ? "🚫 bloqueado" : "✅ ativo"}
-                    </div>
+                  <div style={{ fontSize: 12, opacity: 0.9, whiteSpace: "nowrap" }}>
+                    {r.status === "bloqueado" ? "🚫 bloqueado" : "✅ ativo"}
+                  </div>
 
-                    <div style={{ fontSize: 12, opacity: 0.9 }}>
-                      {r.role === "gm" ? "👑 gm" : "aluno"}
-                    </div>
+                  <div style={{ fontSize: 12, opacity: 0.9, whiteSpace: "nowrap" }}>
+                    {r.role === "gm" ? "👑 gm" : "aluno"}
+                  </div>
 
-                    <div style={{ fontSize: 12, opacity: 0.9 }}>
-                      Lv {r.level ?? 0} • 🏆 {r.reliquiasCount ?? 0} • ᚱ {r.runasCount ?? 0}
-                    </div>
+                  <div style={{ fontSize: 12, opacity: 0.9, whiteSpace: "nowrap" }}>
+                    Lv {r.level ?? 0} • 🏆 {r.reliquiasCount ?? 0} • ᚱ {r.runasCount ?? 0}
+                  </div>
 
-                    <div style={{ fontWeight: 900 }}>{r.cristais ?? 0}</div>
+                  <div style={{ fontWeight: 900, whiteSpace: "nowrap" }}>{r.cristais ?? 0}</div>
 
-                    <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                      <Link
-                        href={`/admin/tools?userId=${encodeURIComponent(r.userId || "")}&email=${encodeURIComponent(r.email || "")}`}
-                        style={{
-                          color: "white",
-                          textDecoration: "none",
-                          border: "1px solid rgba(255,255,255,0.12)",
-                          padding: "8px 10px",
-                          borderRadius: 12,
-                          background: "rgba(255,255,255,0.06)",
-                          fontSize: 12,
-                          opacity: 0.95,
-                        }}
-                        title="Abrir Tools já com userId/email preenchidos"
-                      >
-                        💎 Ajustar
-                      </Link>
+                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                    <Link
+                      href={`/admin/tools?userId=${encodeURIComponent(r.userId || "")}&email=${encodeURIComponent(r.email || "")}`}
+                      style={{
+                        color: "white",
+                        textDecoration: "none",
+                        border: "1px solid rgba(255,255,255,0.12)",
+                        padding: "8px 10px",
+                        borderRadius: 12,
+                        background: "rgba(255,255,255,0.06)",
+                        fontSize: 12,
+                        opacity: 0.95,
+                        whiteSpace: "nowrap",
+                      }}
+                      title="Abrir Tools já com userId/email preenchidos"
+                    >
+                      💎 Ajustar
+                    </Link>
 
-                      <div style={{ fontSize: 12, opacity: 0.75 }}>
-                        {r.userId ? (
-                          <span title={r.userId}>userId ok</span>
-                        ) : (
-                          <span title="Não achou User pelo email">sem userId</span>
-                        )}
-                      </div>
+                    <div style={{ fontSize: 12, opacity: 0.75 }}>
+                      {r.userId ? <span title={r.userId}>userId ok</span> : <span title="Não achou User pelo email">sem userId</span>}
                     </div>
                   </div>
-                ))
-              ) : (
-                <div style={{ padding: 12, opacity: 0.8 }}>Sem resultados.</div>
-              )}
-            </div>
+                </div>
+              ))
+            ) : (
+              <div style={{ padding: 12, opacity: 0.8 }}>Sem resultados.</div>
+            )}
           </div>
+        </div>
 
-          <div style={{ marginTop: 12, fontSize: 12, opacity: 0.75 }}>
-            Observação: se um aluno tiver Acesso mas ainda não existir documento em <b>Aluno</b>, ele aparece com cristais/level = 0 (upsert acontece quando ele usa o site/quests).
-          </div>
-        </Card>
-      </div>
-    </AuthGate>
+        <div style={{ marginTop: 12, fontSize: 12, opacity: 0.75 }}>
+          Observação: se um aluno tiver Acesso mas ainda não existir documento em <b>Aluno</b>, ele aparece com cristais/level = 0 (upsert acontece quando ele usa o site/quests).
+        </div>
+      </Card>
+    </div>
   );
 }

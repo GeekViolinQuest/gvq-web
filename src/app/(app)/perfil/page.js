@@ -7,15 +7,32 @@ import { apiGet, apiPost } from "@/lib/api";
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
-function ItemCard({ title, subtitle, img, locked, tag }) {
+function ItemCard({ title, subtitle, img, locked, tag, shape = "square" }) {
+  const box =
+    shape === "poster"
+      ? {
+          // ✅ Relíquias (proporção tipo “cartaz” ~ 9:16)
+          width: 170,
+          height: 250,
+          borderRadius: 16,
+          padding: 10,
+        }
+      : {
+          // ✅ Runas (quadrado maior)
+          width: 170,
+          height: 170,
+          borderRadius: 16,
+          padding: 10,
+        };
+
   return (
     <div
       style={{
         border: "1px solid rgba(255,255,255,0.12)",
         borderRadius: 12,
-        padding: 12,
+        padding: 14, // ✅ era 12
         display: "flex",
-        gap: 12,
+        gap: 14, // ✅ era 12
         alignItems: "center",
         opacity: locked ? 0.35 : 1,
         background: "rgba(255,255,255,0.03)",
@@ -23,20 +40,23 @@ function ItemCard({ title, subtitle, img, locked, tag }) {
     >
       <div
         style={{
-          width: 128,
-          height: 128,
-          borderRadius: 14,
+          ...box,
           overflow: "hidden",
           border: "1px solid rgba(255,255,255,0.12)",
           background: "rgba(255,255,255,0.04)",
           flex: "0 0 auto",
+          boxSizing: "border-box",
+          display: "grid",
+          placeItems: "center",
         }}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={img || "/locked.png"}
           alt={title}
-          style={{ width: "100%", height: "100%", objectFit: "cover" }}
+          style={{ width: "100%", height: "100%", objectFit: "contain" }} // ✅ não corta
+          loading="lazy"
+          decoding="async"
           onError={(e) => {
             e.currentTarget.onerror = null;
             e.currentTarget.src = "/locked.png";
@@ -193,7 +213,8 @@ function NickEditor({ user, onUpdated }) {
 
       {!canChange ? (
         <div style={{ marginTop: 10, fontSize: 12, opacity: 0.8 }}>
-          🔒 Você atingiu o limite de mudanças. Se precisar corrigir um erro, o Guardião Mestre pode ajustar manualmente no banco.
+          🔒 Você atingiu o limite de mudanças. Se precisar corrigir um erro, o Guardião Mestre pode ajustar manualmente no
+          banco.
         </div>
       ) : null}
     </div>
@@ -265,16 +286,16 @@ function AvatarEditor({ user, onUpdated }) {
     >
       <div style={{ fontWeight: 1000, marginBottom: 8 }}>🧑‍🎨 Avatar</div>
       <div style={{ opacity: 0.8, fontSize: 13, marginBottom: 10 }}>
-        Você pode usar uma URL (https) ou enviar um arquivo pequeno (até 120KB).
-        O avatar é salvo no seu progresso (Aluno.avatarUrl).
+        Você pode usar uma URL (https) ou enviar um arquivo pequeno (até 120KB). O avatar é salvo no seu progresso
+        (Aluno.avatarUrl).
       </div>
 
       <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "center" }}>
         <div
           style={{
-            width: 72,
-            height: 72,
-            borderRadius: 16,
+            width: 110, // ✅ era 72
+            height: 110, // ✅ era 72
+            borderRadius: 18,
             overflow: "hidden",
             border: "1px solid rgba(255,255,255,0.12)",
             background: "rgba(255,255,255,0.04)",
@@ -294,12 +315,7 @@ function AvatarEditor({ user, onUpdated }) {
 
         <div style={{ flex: 1, minWidth: 260, display: "grid", gap: 8 }}>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            <Input
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              placeholder="https://... (opcional)"
-              disabled={saving}
-            />
+            <Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://... (opcional)" disabled={saving} />
             <Button onClick={() => saveAvatar(url)} disabled={saving || !url.trim()}>
               Salvar URL
             </Button>
@@ -413,10 +429,7 @@ export default function PerfilPage() {
       setLoading(true);
       setErr("");
 
-      const [meR, catR] = await Promise.all([
-        apiGet("/api/user/me", { auth: true }),
-        apiGet("/api/meta/catalog", { auth: true }),
-      ]);
+      const [meR, catR] = await Promise.all([apiGet("/api/user/me", { auth: true }), apiGet("/api/meta/catalog", { auth: true })]);
 
       if (!alive) return;
 
@@ -465,7 +478,6 @@ export default function PerfilPage() {
         tipo: data?.tipo || "",
         locked: !unlockedRunas.has(normalizeRunaCode(code)),
       }))
-      // ✅ liberadas primeiro, depois por nome/código
       .sort((a, b) => {
         if (a.locked !== b.locked) return a.locked ? 1 : -1;
         return String(a.nome || a.code).localeCompare(String(b.nome || b.code), "pt-BR");
@@ -481,7 +493,6 @@ export default function PerfilPage() {
         imagem: data?.imagem || null,
         locked: !unlockedReliquias.has(normalizeRelicCode(code)),
       }))
-      // ✅ liberadas primeiro, depois por nome/código
       .sort((a, b) => {
         if (a.locked !== b.locked) return a.locked ? 1 : -1;
         return String(a.nome || a.code).localeCompare(String(b.nome || b.code), "pt-BR");
@@ -500,9 +511,7 @@ export default function PerfilPage() {
         {loading ? <LoadingDots label="Ajustando as runas do perfil" /> : null}
 
         {err ? (
-          <div style={{ border: "1px solid rgba(255,80,80,0.35)", padding: 12, borderRadius: 12 }}>
-            ❌ {err}
-          </div>
+          <div style={{ border: "1px solid rgba(255,80,80,0.35)", padding: 12, borderRadius: 12 }}>❌ {err}</div>
         ) : null}
 
         {!loading && !err ? (
@@ -555,6 +564,7 @@ export default function PerfilPage() {
                   img={r.locked ? "/locked.png" : r.imagem}
                   locked={r.locked}
                   tag={r.locked ? "" : r.tipo ? `Runa ${r.tipo}` : ""}
+                  shape="square"
                 />
               ))}
             </div>
@@ -569,6 +579,7 @@ export default function PerfilPage() {
                   subtitle={r.locked ? "" : `Código: ${r.code}`}
                   img={r.locked ? "/locked.png" : r.imagem}
                   locked={r.locked}
+                  shape="poster" // ✅ Relíquias não quadradas
                 />
               ))}
             </div>

@@ -301,16 +301,11 @@ export default function AdminSeasonPage() {
             </div>
           </div>
 
-          <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-            <Link href="/admin/tools" style={{ color: "white", textDecoration: "none", opacity: 0.9 }}>
-              💎 Tools
-            </Link>
-            <Link href="/admin/epic" style={{ color: "white", textDecoration: "none", opacity: 0.9 }}>
-              ⚔️ Epic Events
-            </Link>
-            <Link href="/admin/alunos" style={{ color: "white", textDecoration: "none", opacity: 0.9 }}>
-              👥 Alunos
-            </Link>
+           <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+              <Link href="/admin" style={{ color: "white", textDecoration: "none", opacity: 0.9 }}>
+                ← Voltar ao Admin
+              </Link>
+            
           </div>
         </div>
 
