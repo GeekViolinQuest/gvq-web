@@ -384,6 +384,19 @@ export default function ForumTopicPage() {
                 </div>
               </div>
 
+              <div style={{ marginTop: 10, fontSize: 12, opacity: 0.82, display: "flex", gap: 10, flexWrap: "wrap" }}>
+                <span>
+                  📁 Categoria: <b>{topic.category || "geral"}</b>
+                </span>
+
+                {topic.category === "ajuda" ? (
+                  <span>
+                     • Status:{" "}
+                    <b>{(topic.status || "open") === "resolved" ? "Resolvido" : "Aberto"}</b>
+                  </span>
+                ) : null}
+              </div>
+
               {(topic.tags || []).length ? (
                 <div style={{ marginTop: 12, display: "flex", gap: 8, flexWrap: "wrap" }}>
                   {(topic.tags || []).map((x) => (

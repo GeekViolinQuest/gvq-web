@@ -6,6 +6,7 @@ import LoadingDots from "@/components/LoadingDots";
 import { apiFetch, apiGet } from "@/lib/api";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
 function Tag({ text }) {
   return (
@@ -136,6 +137,11 @@ function TopicCard({ t }) {
           <Avatar name={t.authorName} url={t.authorAvatarUrl} />
           {t.isPinned ? <span style={{ fontSize: 12, opacity: 0.9 }}>📌 Fixado</span> : null}
           {t.isLocked ? <span style={{ fontSize: 12, opacity: 0.9 }}>🔒 Bloqueado</span> : null}
+          {t.category === "ajuda" ? (
+            <span style={{ fontSize: 12, opacity: 0.9 }}>
+              {t.status === "resolved" ? "☑️ Resolvido" : "✅ Aberto"}
+            </span>
+          ) : null}
           <div style={{ fontWeight: 1000, fontSize: 16 }}>{t.title}</div>
         </div>
 
@@ -155,7 +161,9 @@ function TopicCard({ t }) {
 
           <div style={{ fontSize: 12, opacity: 0.75, display: "flex", gap: 10, flexWrap: "wrap" }}>
             <span>💬 {t.repliesCount ?? 0}</span>
-            <span>{t.likedByMe ? "❤️" : "🤍"} {t.likesCount ?? 0}</span>
+            <span>
+              {t.likedByMe ? "❤️" : "🤍"} {t.likesCount ?? 0}
+            </span>
             <span>
               {metaLabel}: {when}
             </span>
@@ -167,6 +175,36 @@ function TopicCard({ t }) {
 }
 
 export default function ForumPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const category = (searchParams.get("category") || "geral").toLowerCase();
+  const status = (searchParams.get("status") || "").toLowerCase(); // open|resolved (só ajuda)
+  const tag = (searchParams.get("tag") || "").toLowerCase();
+
+  const CATEGORIES = useMemo(
+    () => [
+      { key: "geral", label: "Geral" },
+      { key: "ajuda", label: "Ajuda" },
+      { key: "tecnica", label: "Técnica" },
+      { key: "mao-esquerda", label: "Mão Esquerda" },
+      { key: "mao-direita", label: "Mão Direita / Arco" },
+      { key: "musicas", label: "Músicas" },
+      { key: "teoria", label: "Teoria" },
+      { key: "season", label: "Season Quests" },
+    ],
+    []
+  );
+
+  function setQs(next) {
+    const sp = new URLSearchParams(searchParams.toString());
+    Object.entries(next).forEach(([k, v]) => {
+      if (!v) sp.delete(k);
+      else sp.set(k, String(v));
+    });
+    router.replace(`/forum?${sp.toString()}`);
+  }
+
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
 
@@ -180,19 +218,43 @@ export default function ForumPage() {
   const [body, setBody] = useState("");
   const [tags, setTags] = useState(""); // "tag1, tag2"
 
+  // UI do filtro de TAG (campo controlado, mas a fonte da verdade é o querystring)
+  const [tagInput, setTagInput] = useState(tag);
+
+  useEffect(() => {
+    setTagInput(tag || "");
+  }, [tag]);
+
   const canSubmit = useMemo(() => {
     const t = title.trim();
     const b = body.trim();
     return t.length >= 3 && b.length >= 3;
   }, [title, body]);
 
-  async function loadFirst(force = false) {
-    setErr("");
+  function buildListUrl({ withCursor } = { withCursor: false }) {
+    const base =
+      `/api/forum/topics?limit=20` +
+      `&category=${encodeURIComponent(category)}` +
+      (category === "ajuda" && status ? `&status=${encodeURIComponent(status)}` : "") +
+      (tag ? `&tag=${encodeURIComponent(tag)}` : "");
 
-    // se quiser, dá pra evitar reload se já tiver rows, mas aqui prefiro consistência
+    if (!withCursor) return base;
+    if (!cursor) return base;
+
+    return (
+      `/api/forum/topics?limit=20&cursor=${encodeURIComponent(cursor)}` +
+      `&category=${encodeURIComponent(category)}` +
+      (category === "ajuda" && status ? `&status=${encodeURIComponent(status)}` : "") +
+      (tag ? `&tag=${encodeURIComponent(tag)}` : "")
+    );
+  }
+
+  async function loadFirst() {
+    setErr("");
     setLoading(true);
 
-    const r = await apiGet("/api/forum/topics?limit=20", { auth: true });
+    const url = buildListUrl({ withCursor: false });
+    const r = await apiGet(url, { auth: true });
 
     if (!r?.ok) {
       setErr(r?.error || "Falha ao carregar tópicos");
@@ -200,9 +262,9 @@ export default function ForumPage() {
       return;
     }
 
-    // ✅ FIX: apiGet retorna em r.data
-    setRows(r.rows || []);
-    setCursor(r.nextCursor || null);
+    // ✅ apiGet -> dados em r.data
+    setRows(r.data?.rows || []);
+    setCursor(r.data?.nextCursor || null);
     setLoading(false);
   }
 
@@ -212,9 +274,8 @@ export default function ForumPage() {
     setErr("");
     setLoadingMore(true);
 
-    const r = await apiGet(`/api/forum/topics?limit=20&cursor=${encodeURIComponent(cursor)}`, {
-      auth: true,
-    });
+    const url = buildListUrl({ withCursor: true });
+    const r = await apiGet(url, { auth: true });
 
     setLoadingMore(false);
 
@@ -223,9 +284,9 @@ export default function ForumPage() {
       return;
     }
 
-    // ✅ FIX: r.data
-    setRows((prev) => [...prev, ...(r.rows || [])]);
-    setCursor(r.nextCursor || null);
+    // ✅ apiGet -> dados em r.data
+    setRows((prev) => [...prev, ...(r.data?.rows || [])]);
+    setCursor(r.data?.nextCursor || null);
   }
 
   async function createTopic() {
@@ -241,7 +302,13 @@ export default function ForumPage() {
     const r = await apiFetch("/api/forum/topics", {
       method: "POST",
       auth: true,
-      body: { title: title.trim(), body: body.trim(), tags: tagsArr },
+      body: {
+        title: title.trim(),
+        body: body.trim(),
+        tags: tagsArr,
+        category,
+        status: category === "ajuda" ? (status || "open") : undefined,
+      },
     });
 
     setCreating(false);
@@ -255,13 +322,16 @@ export default function ForumPage() {
     setTitle("");
     setBody("");
     setTags("");
-    await loadFirst(true);
+    await loadFirst();
   }
 
+  // ✅ recarrega ao mudar aba/filtro
   useEffect(() => {
-    loadFirst(false);
+    // reset do cursor local quando muda filtro
+    setCursor(null);
+    loadFirst();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [category, status, tag]);
 
   return (
     <AuthGate>
@@ -269,11 +339,99 @@ export default function ForumPage() {
         title="Comunidade"
         subtitle="Tópicos do Reino — peça ajuda, compartilhe conquistas e ideias."
         right={
-          <Button onClick={() => loadFirst(true)} variant="ghost" disabled={loading || creating}>
+          <Button onClick={() => loadFirst()} variant="ghost" disabled={loading || creating}>
             🔄 Atualizar
           </Button>
         }
       >
+        {/* Tabs */}
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+          {CATEGORIES.map((c) => (
+            <Button
+              key={c.key}
+              variant={category === c.key ? "solid" : "ghost"}
+              onClick={() =>
+                setQs({
+                  category: c.key,
+                  // ao trocar de aba, limpa filtros específicos
+                  status: c.key === "ajuda" ? "open" : "",
+                  tag: "",
+                })
+              }
+              style={{ padding: "8px 10px" }}
+              disabled={loading || creating}
+            >
+              {c.label}
+            </Button>
+          ))}
+        </div>
+
+        {/* Ajuda: Open/Resolved */}
+        {category === "ajuda" ? (
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+            <Button
+              variant={status !== "resolved" ? "solid" : "ghost"}
+              onClick={() => setQs({ status: "open" })}
+              style={{ padding: "8px 10px" }}
+              disabled={loading || creating}
+            >
+              ✅ Abertos
+            </Button>
+            <Button
+              variant={status === "resolved" ? "solid" : "ghost"}
+              onClick={() => setQs({ status: "resolved" })}
+              style={{ padding: "8px 10px" }}
+              disabled={loading || creating}
+            >
+              ☑️ Resolvidos
+            </Button>
+          </div>
+        ) : null}
+
+        {/* Filtro por tag (querystring) */}
+        <div
+          style={{
+            border: "1px solid rgba(255,255,255,0.12)",
+            borderRadius: 14,
+            padding: 14,
+            marginBottom: 16,
+            background: "rgba(255,255,255,0.03)",
+            display: "flex",
+            gap: 10,
+            flexWrap: "wrap",
+            alignItems: "center",
+          }}
+        >
+          <div style={{ fontWeight: 900 }}>🔎 Filtro</div>
+
+          <div style={{ flex: 1, minWidth: 240 }}>
+            <Input
+              value={tagInput}
+              onChange={(e) => setTagInput(e.target.value)}
+              placeholder="Tag (ex: arco, staccato, zelda) — opcional"
+              disabled={loading || creating}
+            />
+          </div>
+
+          <Button
+            variant="ghost"
+            onClick={() => setQs({ tag: tagInput.trim().toLowerCase() })}
+            disabled={loading || creating}
+            title="Aplicar filtro por tag"
+          >
+            Aplicar
+          </Button>
+
+          <Button
+            variant="ghost"
+            onClick={() => setQs({ tag: "" })}
+            disabled={loading || creating}
+            title="Limpar tag"
+          >
+            Limpar
+          </Button>
+        </div>
+
         {/* Criar tópico */}
         <div
           style={{
@@ -284,9 +442,20 @@ export default function ForumPage() {
             background: "rgba(255,255,255,0.03)",
           }}
         >
-          <div style={{ fontWeight: 900, marginBottom: 10 }}>Criar novo tópico</div>
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+            <div style={{ fontWeight: 900 }}>Criar novo tópico</div>
+            <div style={{ fontSize: 12, opacity: 0.8 }}>
+              Categoria: <b>{category}</b>
+              {category === "ajuda" ? (
+                <>
+                  {" "}
+                  • Status: <b>{status || "open"}</b>
+                </>
+              ) : null}
+            </div>
+          </div>
 
-          <div style={{ display: "grid", gap: 10 }}>
+          <div style={{ display: "grid", gap: 10, marginTop: 10 }}>
             <Input
               value={title}
               onChange={(e) => setTitle(e.target.value)}
@@ -314,7 +483,7 @@ export default function ForumPage() {
                 {creating ? "Publicando..." : "Publicar tópico"}
               </Button>
 
-              <Button onClick={() => loadFirst(true)} disabled={loading || creating} variant="ghost">
+              <Button onClick={() => loadFirst()} disabled={loading || creating} variant="ghost">
                 🔄 Atualizar lista
               </Button>
             </div>
@@ -339,12 +508,7 @@ export default function ForumPage() {
 
         {!loading && cursor ? (
           <div style={{ marginTop: 14 }}>
-            <Button
-              onClick={loadMore}
-              disabled={loadingMore}
-              variant="ghost"
-              style={{ width: "100%" }}
-            >
+            <Button onClick={loadMore} disabled={loadingMore} variant="ghost" style={{ width: "100%" }}>
               {loadingMore ? "Carregando..." : "Carregar mais"}
             </Button>
           </div>
