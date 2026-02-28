@@ -4,7 +4,7 @@ import AuthGate from "@/components/AuthGate";
 import GMGate from "@/components/GMGate";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { apiGet, apiPost } from "@/lib/api";
+import { apiGet, apiPost, apiFetch } from "@/lib/api";
 
 function Card({ children }) {
   return (
@@ -81,6 +81,7 @@ function Button({ children, onClick, disabled, variant = "primary" }) {
         color: "white",
         cursor: disabled ? "not-allowed" : "pointer",
         opacity: disabled ? 0.6 : 1,
+        fontWeight: 900,
       }}
     >
       {children}
@@ -130,13 +131,21 @@ export default function AdminAnnouncementsPage() {
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
 
+  const [editingId, setEditingId] = useState(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editContent, setEditContent] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
+
   async function load() {
     setLoading(true);
     setErr("");
     try {
       const r = await apiGet("/api/announcements?limit=20", { auth: true });
       if (!r?.ok) throw new Error(r?.error || "Falha ao carregar avisos");
-      setItems(r.items || []);
+
+      // ✅ robusto (depende do teu helper)
+      setItems(r.items || r.data?.items || []);
     } catch (e) {
       setItems([]);
       setErr(e?.message || "Erro ao carregar avisos");
@@ -245,6 +254,76 @@ Que a chama do Arco Místico guie tua jornada. ✨`
     setErr("");
   }
 
+  // ===== Edit/Delete =====
+  function startEdit(it) {
+    setEditingId(it._id);
+    setEditTitle(it.title || "");
+    setEditContent(it.content || "");
+    setMsg("");
+    setErr("");
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setEditTitle("");
+    setEditContent("");
+  }
+
+  async function saveEdit() {
+    if (!editingId) return;
+
+    const t = editTitle.trim();
+    const c = editContent.trim();
+    if (!t || !c) {
+      setErr("Título e conteúdo não podem ficar vazios.");
+      return;
+    }
+
+    setSavingEdit(true);
+    setErr("");
+    setMsg("");
+
+    try {
+      const r = await apiFetch(`/api/announcements/${editingId}`, {
+        method: "PATCH",
+        auth: true,
+        body: { title: t, content: c },
+      });
+
+      if (!r?.ok) throw new Error(r?.error || "Falha ao salvar");
+
+      setMsg("✅ Aviso atualizado!");
+      cancelEdit();
+      await load();
+    } catch (e) {
+      setErr(e?.message || "Erro ao salvar");
+    } finally {
+      setSavingEdit(false);
+    }
+  }
+
+  async function deleteAnnouncement(id) {
+    const ok = confirm("Excluir este aviso? (não tem volta)");
+    if (!ok) return;
+
+    setDeletingId(id);
+    setErr("");
+    setMsg("");
+
+    try {
+      const r = await apiFetch(`/api/announcements/${id}`, { method: "DELETE", auth: true });
+      if (!r?.ok) throw new Error(r?.error || "Falha ao excluir");
+
+      setMsg("🗑️ Aviso excluído.");
+      if (editingId === id) cancelEdit();
+      await load();
+    } catch (e) {
+      setErr(e?.message || "Erro ao excluir");
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
   return (
     <AuthGate>
       <GMGate>
@@ -259,7 +338,7 @@ Que a chama do Arco Místico guie tua jornada. ✨`
               <Link href="/admin" style={{ color: "white", textDecoration: "none", opacity: 0.9 }}>
                 ← Voltar ao Admin
               </Link>
-              <Button onClick={load} variant="ghost" disabled={loading || posting}>
+              <Button onClick={load} variant="ghost" disabled={loading || posting || savingEdit}>
                 🔄 Atualizar
               </Button>
             </div>
@@ -274,10 +353,10 @@ Que a chama do Arco Místico guie tua jornada. ✨`
 
               {/* ===== Botões de template ===== */}
               <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
-                <Button variant="ghost" onClick={fillTemplateWeekly} disabled={posting}>
+                <Button variant="ghost" onClick={fillTemplateWeekly} disabled={posting || savingEdit}>
                   🧭 Template: Quest da Semana
                 </Button>
-                <Button variant="ghost" onClick={fillTemplateEpic} disabled={posting}>
+                <Button variant="ghost" onClick={fillTemplateEpic} disabled={posting || savingEdit}>
                   ⚔️ Template: Quest Épica
                 </Button>
               </div>
@@ -321,26 +400,80 @@ Que a chama do Arco Místico guie tua jornada. ✨`
                 <div style={{ opacity: 0.75 }}>Carregando...</div>
               ) : items?.length ? (
                 <div style={{ display: "grid", gap: 10 }}>
-                  {items.map((it) => (
-                    <div
-                      key={it._id || it.createdAt}
-                      style={{
-                        border: "1px solid rgba(255,255,255,0.10)",
-                        borderRadius: 12,
-                        padding: 12,
-                        background: "rgba(255,255,255,0.02)",
-                      }}
-                    >
-                      <div style={{ fontWeight: 1000 }}>{it.title}</div>
-                      <div style={{ marginTop: 6, opacity: 0.85, whiteSpace: "pre-wrap", lineHeight: 1.45 }}>
-                        {it.content}
+                  {items.map((it) => {
+                    const isEditing = editingId === it._id;
+
+                    return (
+                      <div
+                        key={it._id || it.createdAt}
+                        style={{
+                          border: "1px solid rgba(255,255,255,0.10)",
+                          borderRadius: 12,
+                          padding: 12,
+                          background: "rgba(255,255,255,0.02)",
+                        }}
+                      >
+                        {!isEditing ? (
+                          <>
+                            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+                              <div style={{ fontWeight: 1000 }}>{it.title}</div>
+
+                              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                                <Button variant="ghost" onClick={() => startEdit(it)} disabled={posting || loading || savingEdit}>
+                                  ✏️ Editar
+                                </Button>
+                                <Button
+                                  variant="danger"
+                                  onClick={() => deleteAnnouncement(it._id)}
+                                  disabled={posting || loading || deletingId === it._id || savingEdit}
+                                >
+                                  {deletingId === it._id ? "Excluindo..." : "🗑️ Excluir"}
+                                </Button>
+                              </div>
+                            </div>
+
+                            <div style={{ marginTop: 6, opacity: 0.85, whiteSpace: "pre-wrap", lineHeight: 1.45 }}>
+                              {it.content}
+                            </div>
+
+                            <div style={{ marginTop: 8, fontSize: 12, opacity: 0.6 }}>
+                              {it.createdAt ? new Date(it.createdAt).toLocaleString("pt-BR") : ""}
+                              {it.createdBy ? ` • por ${it.createdBy}` : ""}
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div style={{ fontWeight: 1000, marginBottom: 10 }}>Editando aviso</div>
+
+                            <div style={{ display: "grid", gap: 10 }}>
+                              <Input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} placeholder="Título" />
+                              <Textarea
+                                value={editContent}
+                                onChange={(e) => setEditContent(e.target.value)}
+                                placeholder="Conteúdo"
+                              />
+
+                              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                                <Button onClick={saveEdit} disabled={savingEdit}>
+                                  {savingEdit ? "Salvando..." : "Salvar"}
+                                </Button>
+                                <Button variant="ghost" onClick={cancelEdit} disabled={savingEdit}>
+                                  Cancelar
+                                </Button>
+                                <Button
+                                  variant="danger"
+                                  onClick={() => deleteAnnouncement(it._id)}
+                                  disabled={savingEdit || deletingId === it._id}
+                                >
+                                  {deletingId === it._id ? "Excluindo..." : "🗑️ Excluir"}
+                                </Button>
+                              </div>
+                            </div>
+                          </>
+                        )}
                       </div>
-                      <div style={{ marginTop: 8, fontSize: 12, opacity: 0.6 }}>
-                        {it.createdAt ? new Date(it.createdAt).toLocaleString("pt-BR") : ""}
-                        {it.createdBy ? ` • por ${it.createdBy}` : ""}
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <div style={{ opacity: 0.75 }}>Nenhum aviso ainda.</div>
