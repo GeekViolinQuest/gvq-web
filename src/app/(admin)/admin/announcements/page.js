@@ -88,6 +88,37 @@ function Button({ children, onClick, disabled, variant = "primary" }) {
   );
 }
 
+function pad2(n) {
+  return String(n).padStart(2, "0");
+}
+
+// ISO week (YYYY-Www)
+function getISOWeekKey(d = new Date()) {
+  const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  // quinta-feira determina o ano ISO
+  const dayNum = date.getUTCDay() || 7;
+  date.setUTCDate(date.getUTCDate() + 4 - dayNum);
+
+  const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+  const weekNo = Math.ceil(((date - yearStart) / 86400000 + 1) / 7);
+
+  return `${date.getUTCFullYear()}-W${pad2(weekNo)}`;
+}
+
+function addDays(d, days) {
+  const x = new Date(d);
+  x.setDate(x.getDate() + days);
+  return x;
+}
+
+function fmtBR(d) {
+  try {
+    return d.toLocaleDateString("pt-BR");
+  } catch {
+    return "";
+  }
+}
+
 export default function AdminAnnouncementsPage() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -145,6 +176,75 @@ export default function AdminAnnouncementsPage() {
     }
   }
 
+  // ===== Templates =====
+  function fillTemplateWeekly() {
+    const wk = getISOWeekKey(new Date());
+    const deadline = fmtBR(addDays(new Date(), 6)); // “até domingo” aproximado
+
+    setTitle(`Quest da Semana — ${wk}`);
+    setContent(
+`Guardiões,
+
+🎻 QUEST DA SEMANA — ${wk}
+
+🔹 Desafio:
+[Descreva aqui a Quest da Semana em 1–2 linhas]
+
+📌 Regras:
+- [Regra 1]
+- [Regra 2]
+- [Regra 3]
+
+⏳ Prazo:
+Até ${deadline} (23:59)
+
+📤 Entrega:
+Poste o seu link na aba Season Quests.
+
+✨ Recompensa:
++2 Cristais Sonoros
+
+Boa caça, Guardiões. 🐾`
+    );
+
+    setMsg("📝 Template de Quest da Semana aplicado. Ajuste e publique.");
+    setErr("");
+  }
+
+  function fillTemplateEpic() {
+    const wk = getISOWeekKey(new Date());
+    const deadline = fmtBR(addDays(new Date(), 14)); // épica ~15 dias
+
+    setTitle(`Quest Épica — ${wk}`);
+    setContent(
+`Guardiões,
+
+⚔️ QUEST ÉPICA — ${wk}
+
+🔥 Missão:
+[Explique a Quest Épica e o evento em 2–4 linhas]
+
+📌 Regras:
+- [Regra 1]
+- [Regra 2]
+- [Regra 3]
+
+⏳ Janela do Evento:
+Até ${deadline} (23:59)
+
+📤 Entrega:
+Poste o seu link na aba Season Quests.
+
+🏆 Recompensa:
++5 Cristais Sonoros
+
+Que a chama do Arco Místico guie tua jornada. ✨`
+    );
+
+    setMsg("📝 Template de Quest Épica aplicado. Ajuste e publique.");
+    setErr("");
+  }
+
   return (
     <AuthGate>
       <GMGate>
@@ -172,8 +272,22 @@ export default function AdminAnnouncementsPage() {
             <Card>
               <div style={{ fontWeight: 1000, marginBottom: 10 }}>Criar novo aviso</div>
 
+              {/* ===== Botões de template ===== */}
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
+                <Button variant="ghost" onClick={fillTemplateWeekly} disabled={posting}>
+                  🧭 Template: Quest da Semana
+                </Button>
+                <Button variant="ghost" onClick={fillTemplateEpic} disabled={posting}>
+                  ⚔️ Template: Quest Épica
+                </Button>
+              </div>
+
               <div style={{ display: "grid", gap: 10 }}>
-                <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Título (ex: Quest da Semana — 2026-W08)" />
+                <Input
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="Título (ex: Quest da Semana — 2026-W08)"
+                />
                 <Textarea
                   value={content}
                   onChange={(e) => setContent(e.target.value)}

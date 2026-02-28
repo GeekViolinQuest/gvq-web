@@ -17,7 +17,7 @@ function Pill({ children, title, onClick, clickable }) {
       title={title}
       onClick={onClick}
       style={{
-        fontSize: 12,
+        fontSize: 16,
         padding: "6px 10px",
         borderRadius: 999,
         border: "1px solid rgba(255,255,255,0.12)",
@@ -77,8 +77,8 @@ export default function GVQTopNav() {
     () => [
       { href: "/dashboard", icon: "🏠", label: "Dashboard" },
       { href: "/perfil", icon: "👤", label: "Perfil" },
-      { href: "/season", icon: "⚔️", label: "Season" },
-      { href: "/resgatar", icon: "🔓", label: "Resgatar" },
+      { href: "/season", icon: "⚔️", label: "Season Quests" },
+      { href: "/resgatar", icon: "🔓", label: "Resgatar Código" },
       { href: "/leaderboard", icon: "🏆", label: "Ranking" },
       { href: "/forum", icon: "💬", label: "Comunidade" },
     ],
@@ -202,10 +202,10 @@ export default function GVQTopNav() {
               background: "rgba(255,255,255,0.04)",
             }}
           >
-            <span style={{ fontSize: 18 }}>🎻</span>
+            <span style={{ fontSize: 24 }}>🎻</span>
             <div style={{ lineHeight: 1.1 }}>
-              <div style={{ fontWeight: 1000, letterSpacing: 0.4 }}>Geek Violin Quest</div>
-              <div style={{ fontSize: 12, opacity: 0.75 }}>Hub do Guardião</div>
+              <div style={{ fontSize: 28, fontWeight: 1000, letterSpacing: 1.0 }}>Geek Violin Quest</div>          
+              <div style={{ fontSize: 16, opacity: 0.75 }}>Hub do Guardião</div>
             </div>
           </Link>
 
