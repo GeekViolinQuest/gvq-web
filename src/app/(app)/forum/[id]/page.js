@@ -5,7 +5,7 @@ import GVQShell from "@/components/GVQShell";
 import { apiFetch, apiGet } from "@/lib/api";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 
 function Avatar({ src, name }) {
   const initial = (name || "G").trim().slice(0, 1).toUpperCase();
@@ -109,11 +109,12 @@ function When({ dt }) {
   return <span style={{ fontSize: 12, opacity: 0.75 }}>{when}</span>;
 }
 
-import { useParams } from "next/navigation";
-
 export default function ForumTopicPage() {
   const params = useParams();
-  const topicId = params?.id; // agora vem certo
+  const topicId = params?.id; // vem da rota /forum/[id]
+
+  // ✅ FIX: router definido no App Router
+  const router = useRouter();
 
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
@@ -148,9 +149,7 @@ export default function ForumTopicPage() {
   }, [topic, meUserId, isMod]);
 
   async function loadMe() {
-    // HUD antigo usa  (que retorna {ok, me:{...}})
-    // já o site-first usa /api/user/me (que retorna {ok, user:{...}})
-    // vamos suportar os 2.
+    // suportar 2 formatos (mantive teu comportamento)
     const a = await apiGet("/api/user/me", { auth: true });
     if (a?.ok && a.data?.me) {
       const m = a.data.me;
@@ -192,6 +191,7 @@ export default function ForumTopicPage() {
   }
 
   useEffect(() => {
+    if (!topicId) return;
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [topicId]);
@@ -202,7 +202,6 @@ export default function ForumTopicPage() {
     if (!topic) return;
     const r = await apiFetch(`/api/forum/topics/${topic.id}/like`, { method: "POST", auth: true });
     if (!r?.ok) return setErr(r?.error || "Falha ao curtir");
-    // atualiza local (sem reload pesado)
     setTopic((prev) =>
       prev
         ? {
@@ -219,10 +218,12 @@ export default function ForumTopicPage() {
     const ok = confirm("Excluir este tópico? (vai sumir da lista)");
     if (!ok) return;
 
-    const r = await apiFetch(`/api/forum/topics/${topic.id}`, { method: "DELETE", auth: true });
+    // ✅ FIX: usa topicId (param) e router definido
+    const r = await apiFetch(`/api/forum/topics/${topicId}`, { method: "DELETE", auth: true });
     if (!r?.ok) return setErr(r?.error || "Falha ao excluir");
 
-    router.push("/forum");
+    router.replace("/forum"); // ✅ volta pra lista sem erro
+    router.refresh(); // ✅ opcional: força revalidar a lista
   }
 
   function startEditTopic() {

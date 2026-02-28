@@ -214,7 +214,7 @@ export default function ResgatarPage() {
     <AuthGate>
       <GVQShell
         title="Resgatar"
-        subtitle="Insira um código de Runa ou Relíquia para registrar sua conquista no site."
+        subtitle="Insira o nome da Runa ou Relíquia para registrar sua conquista!"
       >
         <Card>
           <form onSubmit={handleSubmit} style={{ display: "grid", gap: 10 }}>
@@ -223,7 +223,7 @@ export default function ResgatarPage() {
             <Input
               value={code}
               onChange={(e) => setCode(e.target.value)}
-              placeholder="Ex: !runa001  |  !reliquiapaz  |  runaorigem"
+              placeholder="Ex: !runa001  |  reliquiapaz  |  origem"
               disabled={loading}
             />
 

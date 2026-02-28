@@ -268,7 +268,7 @@ export default function LeaderboardPage() {
     <AuthGate>
       <GVQShell
         title="Ranking"
-        subtitle="Season = Cristais + Tier • Nível e Relíquias separados"
+        subtitle="Season Quests • Nível • Relíquias"
         right={
           <button
             onClick={() => loadCurrent(true)}

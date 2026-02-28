@@ -271,9 +271,7 @@ export default function SeasonPage() {
       >
         <Button variant="ghost">← Voltar ao Dashboard</Button>
       </Link>
-      <Button variant="ghost" onClick={refresh} disabled={loading}>
-        🔄 Atualizar
-      </Button>
+     
     </div>
   );
 
