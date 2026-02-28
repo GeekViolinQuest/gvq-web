@@ -47,7 +47,32 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
 
+  // ===== Avisos do GM =====
+  const [ann, setAnn] = useState([]);
+  const [annLoading, setAnnLoading] = useState(false);
+
   const router = useRouter();
+
+  function AnnCard({ item }) {
+    return (
+      <div
+        style={{
+          border: "1px solid rgba(255,255,255,0.10)",
+          borderRadius: 12,
+          padding: 12,
+          background: "rgba(255,255,255,0.02)",
+        }}
+      >
+        <div style={{ fontWeight: 1000 }}>{item.title}</div>
+        <div style={{ marginTop: 6, opacity: 0.85, whiteSpace: "pre-wrap", lineHeight: 1.45 }}>
+          {item.content}
+        </div>
+        <div style={{ marginTop: 8, fontSize: 12, opacity: 0.6 }}>
+          {item.createdAt ? new Date(item.createdAt).toLocaleString("pt-BR") : ""}
+        </div>
+      </div>
+    );
+  }
 
   async function load() {
     setErr("");
@@ -64,6 +89,18 @@ export default function DashboardPage() {
 
     setPayload(r.data);
     setLoading(false);
+
+    // ===== fetch avisos =====
+    setAnnLoading(true);
+    try {
+      const a = await apiGet("/api/announcements?limit=5", { auth: true });
+      if (a?.ok) setAnn(a.items || []);
+      else setAnn([]);
+    } catch {
+      setAnn([]);
+    } finally {
+      setAnnLoading(false);
+    }
   }
 
   useEffect(() => {
@@ -80,7 +117,6 @@ export default function DashboardPage() {
 
   const displayName = user?.displayName || "Guardião";
   const email = user?.email || "";
-  const isLinkedDiscord = !!user?.discordId;
 
   return (
     <AuthGate>
@@ -92,9 +128,7 @@ export default function DashboardPage() {
             <Button onClick={load} variant="ghost" disabled={loading}>
               🔄 Atualizar
             </Button>
-            <Button onClick={handleLogout} variant="ghost">
-              Sair
-            </Button>
+            
           </div>
         }
       >
@@ -116,18 +150,7 @@ export default function DashboardPage() {
 
         {!loading && payload?.ok ? (
           <>
-            <div style={{ marginTop: 16 }}>
-              <div style={{ opacity: 0.85, marginBottom: 10, fontWeight: 900 }}>Ações rápidas</div>
-
-              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                <Button onClick={() => router.push("/perfil")}>👤 Perfil</Button>
-                <Button onClick={() => router.push("/resgatar")}>🎟️ Resgatar código</Button>
-                <Button onClick={() => router.push("/season")}>🧭 Season Quests</Button>
-                <Button onClick={() => router.push("/leaderboard")}>🏆 Leaderboard</Button>
-                <Button onClick={() => router.push("/forum")}>💬 Comunidade</Button>
-              </div>
-            </div>
-
+            
             <div
               style={{
                 marginTop: 18,
@@ -151,17 +174,25 @@ export default function DashboardPage() {
                 background: "rgba(255,255,255,0.03)",
               }}
             >
-              <div style={{ fontWeight: 1000, marginBottom: 6 }}>Status</div>
-              <div style={{ opacity: 0.85, fontSize: 13, lineHeight: 1.45 }}>
-                {isLinkedDiscord ? (
-                  <>
-                    ✅ Discord vinculado (legado/migração):{" "}
-                    <span style={{ opacity: 0.95 }}>{user.discordId}</span>
-                  </>
-                ) : (
-                  <>ℹ️ Discord não vinculado (ok). O site funciona independente disso.</>
-                )}
-              </div>
+              <div style={{ fontWeight: 1000, marginBottom: 6 }}>Status do Guardião</div>
+              <div style={{ opacity: 0.85, fontSize: 13, lineHeight: 1.45 }}>✅ Conta ativa.</div>
+            </div>
+
+            {/* ===== Avisos do GM ===== */}
+            <div style={{ marginTop: 16 }}>
+              <div style={{ fontWeight: 1000, marginBottom: 8 }}>📣 Avisos do GM</div>
+
+              {annLoading ? (
+                <div style={{ opacity: 0.75, fontSize: 13 }}>Carregando avisos...</div>
+              ) : ann?.length ? (
+                <div style={{ display: "grid", gap: 10 }}>
+                  {ann.map((it) => (
+                    <AnnCard key={it._id || it.createdAt} item={it} />
+                  ))}
+                </div>
+              ) : (
+                <div style={{ opacity: 0.75, fontSize: 13 }}>Nenhum aviso no momento.</div>
+              )}
             </div>
           </>
         ) : null}

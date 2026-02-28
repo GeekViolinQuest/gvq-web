@@ -1,9 +1,11 @@
 "use client";
 
+import GMGate from "@/components/GMGate";
 import AuthGate from "@/components/AuthGate";
 import { apiFetch } from "@/lib/api";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+
 
 function Card({ children }) {
   return (
@@ -15,7 +17,7 @@ function Card({ children }) {
         background: "rgba(255,255,255,0.03)",
       }}
     >
-      {children}
+      {children}import GMGate from "@/components/GMGate";
     </div>
   );
 }
@@ -45,8 +47,8 @@ function Button({ children, onClick, disabled, variant = "primary", title }) {
     variant === "danger"
       ? "rgba(255, 80, 80, 0.18)"
       : variant === "ghost"
-      ? "rgba(255,255,255,0.06)"
-      : "rgba(255,255,255,0.10)";
+        ? "rgba(255,255,255,0.06)"
+        : "rgba(255,255,255,0.10)";
 
   return (
     <button
@@ -87,7 +89,7 @@ export default function AdminToolsPage() {
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
 
-  // ===== UPGRADE 1: SEARCH =====
+  // ===== SEARCH =====
   const [q, setQ] = useState("");
   const [searching, setSearching] = useState(false);
   const [results, setResults] = useState([]);
@@ -147,9 +149,7 @@ export default function AdminToolsPage() {
     if (em) setEmail(em);
 
     setMsg(
-      `🎯 Alvo selecionado: ${
-        row?.acesso?.displayName || row?.acesso?.nomeReal || em || uid
-      }`
+      `🎯 Alvo selecionado: ${row?.acesso?.displayName || row?.acesso?.nomeReal || em || uid}`
     );
   }
 
@@ -184,7 +184,6 @@ export default function AdminToolsPage() {
     }
   }
 
-  // ===== UPGRADE 2: QUICK BUTTONS (execute adjustment) =====
   async function quickAdjust(nextMode, nextAmount) {
     setMode(nextMode);
     setAmount(String(nextAmount));
@@ -195,7 +194,6 @@ export default function AdminToolsPage() {
       return;
     }
 
-    // SET 0: usa endpoint /set (porque /adjust set costuma ser 1..500)
     if (nextMode === "set" && nextAmount === 0) {
       setLoading(true);
       setMsg("");
@@ -242,8 +240,8 @@ export default function AdminToolsPage() {
         nextMode === "inc"
           ? `+${nextAmount}`
           : nextMode === "dec"
-          ? `-${nextAmount}`
-          : `= ${nextAmount}`;
+            ? `-${nextAmount}`
+            : `= ${nextAmount}`;
 
       setMsg(`✅ Cristais ajustados (${label}). Total agora: ${r.cristais ?? "—"} 💎`);
     } catch (e) {
@@ -282,6 +280,7 @@ export default function AdminToolsPage() {
 
   return (
     <AuthGate>
+      <GMGate></GMGate>
       <div style={{ maxWidth: 980, margin: "0 auto", padding: "32px 18px", color: "white" }}>
         <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
           <div>
@@ -290,8 +289,11 @@ export default function AdminToolsPage() {
           </div>
 
           <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+            <Link href="/admin" style={{ color: "white", textDecoration: "none", opacity: 0.9 }}>
+              ← HUB Admin
+            </Link>
             <Link href="/admin/alunos" style={{ color: "white", textDecoration: "none", opacity: 0.9 }}>
-              ← Ver Alunos
+              Ver Alunos
             </Link>
           </div>
         </div>
@@ -300,7 +302,6 @@ export default function AdminToolsPage() {
         {err ? <div style={{ marginTop: 14, color: "#feb2b2" }}>❌ {err}</div> : null}
 
         <div style={{ marginTop: 18, display: "grid", gap: 14 }}>
-          {/* ===== UPGRADE 1: Busca ===== */}
           <Card>
             <div style={{ fontWeight: 900, marginBottom: 10 }}>🔎 Buscar aluno (Acesso + Aluno)</div>
 
@@ -308,7 +309,7 @@ export default function AdminToolsPage() {
               <Input
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
-                placeholder="email, nome, displayName, discordId, userId..."
+                placeholder="email, nome, displayName, userId..."
               />
               <Button onClick={search} disabled={loading || searching || !q.trim()}>
                 {searching ? "Buscando..." : "Buscar"}
@@ -341,8 +342,6 @@ export default function AdminToolsPage() {
 
                       <div style={{ fontSize: 12, opacity: 0.8, marginTop: 4, lineHeight: 1.35 }}>
                         userId: <b>{r.userId || "—"}</b>
-                        {"  "}• discordId:{" "}
-                        <b>{r?.acesso?.discordId || r?.aluno?.discordId || "—"}</b>
                         {"  "}• cristais: <b>{r?.aluno?.cristais ?? "—"}</b>
                         {"  "}• level: <b>{r?.aluno?.level ?? "—"}</b>
                       </div>
@@ -382,7 +381,6 @@ export default function AdminToolsPage() {
             )}
           </Card>
 
-          {/* Ajuste de Cristais */}
           <Card>
             <div style={{ fontWeight: 900, marginBottom: 10 }}>💎 Ajustar Cristais</div>
 
@@ -447,7 +445,6 @@ export default function AdminToolsPage() {
               </Button>
             </div>
 
-            {/* ===== UPGRADE 2: Atalhos ===== */}
             <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
               <Button variant="ghost" onClick={() => quickAdjust("inc", 1)} disabled={loading}>
                 +1
@@ -474,7 +471,6 @@ export default function AdminToolsPage() {
             </div>
           </Card>
 
-          {/* Reset global */}
           <Card>
             <div style={{ fontWeight: 900, marginBottom: 10 }}>🧨 Reset global da Season (zerar cristais)</div>
 
@@ -495,7 +491,11 @@ export default function AdminToolsPage() {
                   </span>
                 ) : null}
               </div>
-              <Input value={resetConfirm} onChange={(e) => setResetConfirm(e.target.value)} placeholder='ex: "RESETAR 2026-W08"' />
+              <Input
+                value={resetConfirm}
+                onChange={(e) => setResetConfirm(e.target.value)}
+                placeholder='ex: "RESETAR 2026-W08"'
+              />
             </div>
 
             <div style={{ display: "flex", gap: 10, marginTop: 12, flexWrap: "wrap" }}>
@@ -526,6 +526,7 @@ export default function AdminToolsPage() {
           Observação: se o GM digitar errado, a API retorna o texto exato esperado.
         </div>
       </div>
+     <GMGate></GMGate> 
     </AuthGate>
   );
 }

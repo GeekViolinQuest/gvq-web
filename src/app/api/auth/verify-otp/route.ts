@@ -5,10 +5,6 @@ function getApiUrl() {
   return (process.env.API_URL || process.env.NEXT_PUBLIC_API_URL || "").replace(/\/$/, "");
 }
 
-function isProd() {
-  return process.env.NODE_ENV === "production";
-}
-
 export async function POST(req: Request) {
   const API_URL = getApiUrl();
   if (!API_URL) {
@@ -26,21 +22,7 @@ export async function POST(req: Request) {
 
   const data = await r.json().catch(() => ({}));
 
-  const res = NextResponse.json(data, { status: r.status });
-
-  // ✅ Se o backend devolveu token, salvamos em cookie httpOnly
-  const token = data?.token;
-  if (r.ok && token) {
-    res.cookies.set({
-      name: "gvq_token",
-      value: String(token),
-      httpOnly: true,
-      secure: isProd(),
-      sameSite: "lax",
-      path: "/",
-      maxAge: 60 * 60 * 24 * 7, // 7 dias
-    });
-  }
-
-  return res;
+  // ✅ modo A: NÃO seta cookie. Só repassa o JSON pro front,
+  // e o front salva o token em localStorage (setToken).
+  return NextResponse.json(data, { status: r.status });
 }

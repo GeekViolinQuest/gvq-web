@@ -214,7 +214,7 @@ export default function GVQTopNav() {
             {items.map((it) => (
               <NavItem key={it.href} href={it.href} icon={it.icon} label={it.label} />
             ))}
-            {isGM ? <NavItem href="/admin/dashboard" icon="🛡️" label="Admin" /> : null}
+            {isGM ? <NavItem href="/admin" icon="🛡️" label="Admin" /> : null}
           </div>
 
           {/* HUD + ações */}
