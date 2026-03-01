@@ -3,7 +3,11 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 function getApiUrl() {
-  return (process.env.API_URL || "").replace(/\/$/, "");
+  const raw = (process.env.API_URL || "").trim().replace(/\/$/, "");
+  if (!raw) return "";
+  // ✅ força https (evita treta http/https em prod)
+  if (raw.startsWith("http://")) return raw.replace(/^http:\/\//, "https://");
+  return raw;
 }
 
 function getTokenFromCookieHeader(cookieHeader: string | null) {
@@ -33,17 +37,16 @@ export async function proxyToBackend(req: NextRequest, backendPath: string) {
   const contentType = req.headers.get("content-type");
   if (contentType) headers.set("content-type", contentType);
 
-  // ✅ (novo) repassa cookies também (se backend usar)
+  // ✅ repassa cookie também (não atrapalha)
   const cookie = req.headers.get("cookie");
   if (cookie) headers.set("cookie", cookie);
 
-  // ✅ AUTH
   const auth = req.headers.get("authorization");
   const hasValidBearer = !!(auth && /^Bearer\s+.+/i.test(auth));
 
   if (hasValidBearer) {
     headers.set("authorization", auth!);
-    headers.set("Authorization", auth!); // ✅ (novo) redundância segura
+    headers.set("Authorization", auth!);
   } else {
     const token =
       req.cookies.get("gvq_token")?.value ||
@@ -52,29 +55,50 @@ export async function proxyToBackend(req: NextRequest, backendPath: string) {
     if (token) {
       const v = `Bearer ${token}`;
       headers.set("authorization", v);
-      headers.set("Authorization", v); // ✅ (novo)
+      headers.set("Authorization", v);
     }
   }
 
-  let body: string | undefined;
+  let body: string | undefined = undefined;
   if (req.method !== "GET" && req.method !== "HEAD") {
     const txt = await req.text();
     body = txt || undefined;
   }
 
-  const r = await fetch(url.toString(), {
-    method: req.method,
-    headers,
-    body,
-    cache: "no-store",
-  });
+  try {
+    const r = await fetch(url.toString(), {
+      method: req.method,
+      headers,
+      body,
+      cache: "no-store",
+    });
 
-  const out = await r.text();
+    const out = await r.text();
 
-  return new NextResponse(out, {
-    status: r.status,
-    headers: {
-      "Content-Type": r.headers.get("content-type") || "application/json",
-    },
-  });
+    return new NextResponse(out, {
+      status: r.status,
+      headers: {
+        "Content-Type": r.headers.get("content-type") || "application/json",
+      },
+    });
+  } catch (err: any) {
+    // ✅ aqui vai aparecer o motivo REAL (DNS, TLS, ECONNRESET, etc.)
+    console.error("[proxyToBackend] fetch failed:", {
+      to: url.toString(),
+      message: err?.message,
+      code: err?.code,
+      cause: err?.cause,
+    });
+
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "proxy_fetch_failed",
+        to: url.toString(),
+        message: String(err?.message || err),
+        code: err?.code || null,
+      },
+      { status: 502 }
+    );
+  }
 }
