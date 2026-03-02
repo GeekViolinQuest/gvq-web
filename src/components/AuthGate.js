@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { apiGet, clearToken, getToken } from "@/lib/api";
+import { apiMe, clearMeCache, clearToken, getToken } from "@/lib/api";
 import GVQShell from "@/components/GVQShell";
 import LoadingDots from "@/components/LoadingDots";
 
@@ -18,58 +18,70 @@ export default function AuthGate({ children }) {
     let alive = true;
 
     async function run() {
-      // ✅ Rotas públicas não exigem validação
+      // Rotas públicas
       if (isPublic) {
         const token = getToken();
         if (token) {
-          const r = await apiGet("/api/user/me", { auth: true });
+          const r = await apiMe({ maxAgeMs: 10_000 }); // cache curtinho aqui
           if (r.ok) {
-            router.replace("/dashboard"); // ou /perfil
+            router.replace("/dashboard");
             return;
           }
-          clearToken();
+          // só limpa token se for 401/403
+          if (r.status === 401 || r.status === 403) {
+            clearMeCache();
+            clearToken();
+          }
         }
         if (alive) setReady(true);
         return;
       }
 
+      // Rotas privadas
       const token = getToken();
-
-      // ❌ Sem token em rota privada -> login
       if (!token) {
+        clearMeCache();
         clearToken();
         router.replace("/login");
         return;
       }
 
-      // ✅ Valida token (rota interna do Next)
-      const r = await apiGet("/api/user/me", { auth: true });
+      // ✅ cache 60s: troca de página fica instantânea
+      const r = await apiMe({ maxAgeMs: 60_000 });
 
       if (!alive) return;
 
       if (!r.ok) {
-        clearToken();
-        router.replace("/login");
+        // ✅ Só desloga se realmente for “token inválido”
+        if (r.status === 401 || r.status === 403) {
+          clearMeCache();
+          clearToken();
+          router.replace("/login");
+          return;
+        }
+
+        // ✅ 5xx / rede: mantém sessão e deixa passar (não trava)
+        // opcional: você pode exibir um toast "Servidor instável"
+        setReady(true);
         return;
       }
 
       setReady(true);
     }
 
-    setReady(false); // sempre que trocar de rota, reavalia
+    // ❌ Não derruba a tela em toda troca de rota.
+    // Só derruba se ainda não ficou pronto nenhuma vez.
+    setReady((prev) => prev || false);
+
     run();
 
-    // Se você fizer logout em outra aba, essa aba acompanha (em rotas privadas)
     function onStorage(e) {
       if (e.key === "gvq_token" && !e.newValue) {
-        if (!isPublic) {
-          router.replace("/login");
-        }
+        if (!isPublic) router.replace("/login");
       }
     }
 
     window.addEventListener("storage", onStorage);
-
     return () => {
       alive = false;
       window.removeEventListener("storage", onStorage);
@@ -77,7 +89,6 @@ export default function AuthGate({ children }) {
   }, [router, pathname, isPublic]);
 
   if (!ready) {
-    // ✅ evita tela preta
     return (
       <GVQShell title="GVQ — Portal de Entrada" subtitle="Preparando seu acesso...">
         <div style={{ paddingTop: 10, opacity: 0.9 }}>
