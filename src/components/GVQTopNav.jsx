@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { apiGet } from "@/lib/api";
+import Image from "next/image";
 
 function isActivePath(pathname, href) {
   if (!pathname) return false;
@@ -203,7 +204,14 @@ export default function GVQTopNav() {
               background: "rgba(255,255,255,0.04)",
             }}
           >
-            <span style={{ fontSize: 24 }}>🎻</span>
+            <Image
+              src="/gvq-logo.png"
+              alt="Geek Violin Quest"
+              width={50}
+              height={50}
+              style={{ borderRadius: 6 }}
+            />
+
             <div style={{ lineHeight: 1.1 }}>
               <div style={{ fontSize: 28, fontWeight: 1000, letterSpacing: 1.0 }}>Geek Violin Quest</div>          
               <div style={{ fontSize: 16, opacity: 0.75 }}>Hub do Guardião</div>
