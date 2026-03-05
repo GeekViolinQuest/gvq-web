@@ -188,7 +188,7 @@ export default function AdminAnnouncementsPage() {
   // ===== Templates =====
   function fillTemplateWeekly() {
     const wk = getISOWeekKey(new Date());
-    const deadline = fmtBR(addDays(new Date(), 6)); // “até domingo” aproximado
+    const deadline = fmtBR(addDays(new Date(), 6)); // “até domingo” aproximadoa
 
     setTitle(`Quest da Semana — ${wk}`);
     setContent(
